@@ -1456,4 +1456,6 @@ export const generateHTMLReport = (data: JMeterData): string => {
     </script>
 </body>
 </html>`;
-};
+            };
+            )
+            )
