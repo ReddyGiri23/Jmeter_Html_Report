@@ -51,7 +51,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData }) => {
           </p>
         </div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <ScatterChart 
             data={chartData.throughputVsResponseTime}
             title="Throughput vs Response Time"

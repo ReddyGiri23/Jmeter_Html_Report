@@ -906,7 +906,7 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
         .charts-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 30px;
+            gap: 25px;
         }
         
         .chart-container {
@@ -914,7 +914,7 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            height: 400px;
+            height: 500px;
         }
         
         .chart-container.full-width {
