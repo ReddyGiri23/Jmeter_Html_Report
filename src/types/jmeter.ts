@@ -82,3 +82,46 @@ export interface JMeterData {
   errorSamples: ErrorSample[];
   chartData: ChartData;
 }
+
+export interface ComparisonMetrics {
+  label: string;
+  current: {
+    avgResponseTime: number;
+    p90ResponseTime: number;
+    throughput: number;
+    errorRate: number;
+    count: number;
+  };
+  previous: {
+    avgResponseTime: number;
+    p90ResponseTime: number;
+    throughput: number;
+    errorRate: number;
+    count: number;
+  };
+  changes: {
+    avgResponseTime: number; // percentage change
+    p90ResponseTime: number; // percentage change
+    throughput: number; // percentage change
+    errorRate: number; // percentage change
+  };
+  status: 'improvement' | 'regression' | 'neutral';
+}
+
+export interface ComparisonResult {
+  currentTest: {
+    fileName: string;
+    summary: TestSummary;
+  };
+  previousTest: {
+    fileName: string;
+    summary: TestSummary;
+  };
+  metrics: ComparisonMetrics[];
+  overallStatus: 'improvement' | 'regression' | 'mixed' | 'neutral';
+  insights: {
+    topImprovements: ComparisonMetrics[];
+    topRegressions: ComparisonMetrics[];
+    summary: string;
+  };
+}
