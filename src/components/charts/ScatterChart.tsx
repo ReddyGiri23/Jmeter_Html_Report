@@ -103,7 +103,7 @@ const ScatterChart: React.FC<ScatterChartProps> = ({
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
-      <div style={{ position: 'relative', height: '500px' }}>
+      <div style={{ position: 'relative', height: '400px' }}>
         <canvas ref={canvasRef}></canvas>
       </div>
     </div>
