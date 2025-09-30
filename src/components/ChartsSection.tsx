@@ -12,6 +12,35 @@ interface ChartsSectionProps {
 }
 
 const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData }) => {
+  // Calculate number of unique transactions
+  const transactionCount = chartData.percentiles?.length || 0;
+  
+  // Dynamic layout based on transaction count
+  const getTimeSeriesLayout = () => {
+    if (transactionCount <= 2) return 'grid-cols-1'; // Single column for 1-2 transactions
+    if (transactionCount <= 5) return 'grid-cols-1 lg:grid-cols-2'; // 2 columns for 3-5 transactions
+    return 'grid-cols-1 lg:grid-cols-2'; // Default 2 columns for many transactions
+  };
+  
+  const getCorrelationLayout = () => {
+    if (transactionCount <= 2) return 'grid-cols-1'; // Single column for 1-2 transactions
+    if (transactionCount <= 4) return 'grid-cols-1 lg:grid-cols-2'; // 2 columns for 3-4 transactions
+    if (transactionCount <= 8) return 'grid-cols-1 lg:grid-cols-2 xl:grid-cols-2'; // 2 columns for 5-8 transactions
+    return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'; // Up to 4 columns for many transactions
+  };
+  
+  const getCorrelationGap = () => {
+    if (transactionCount <= 4) return 'gap-8'; // Larger gaps for fewer charts
+    if (transactionCount <= 8) return 'gap-6'; // Medium gaps
+    return 'gap-4'; // Smaller gaps for many charts
+  };
+  
+  const getCorrelationChartHeight = () => {
+    if (transactionCount <= 2) return 600; // Larger charts for fewer transactions
+    if (transactionCount <= 4) return 500; // Medium size
+    if (transactionCount <= 8) return 450; // Smaller for more charts
+    return 400; // Compact for many charts
+  };
   return (
     <div className="space-y-8">
       {/* Time-Series Charts */}
@@ -24,15 +53,20 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData }) => {
         <p className="text-blue-800 text-sm">
           <strong>Time-Series Analysis:</strong> These charts show how your system performs over the duration of the test, 
           helping identify trends, spikes, and performance patterns over time.
+          {transactionCount > 0 && (
+            <span className="ml-2 font-medium">
+              ({transactionCount} transaction{transactionCount !== 1 ? 's' : ''} analyzed)
+            </span>
+          )}
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className={`grid ${getTimeSeriesLayout()} gap-8`}>
         <ResponseTimesChart data={chartData.responseTimesOverTime} />
         <ThroughputChart data={chartData.tpsOverTime} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className={`grid ${getTimeSeriesLayout()} gap-8`}>
         <ErrorsChart data={chartData.errorsOverTime} />
         <HitsChart data={chartData.hitsOverTime} />
       </div>
@@ -48,33 +82,42 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData }) => {
           <p className="text-purple-800 text-sm">
             <strong>Correlation Analysis:</strong> These scatter charts reveal relationships between different performance metrics, 
             helping identify patterns and performance bottlenecks.
+            {transactionCount > 0 && (
+              <span className="ml-2 font-medium">
+                Layout optimized for {transactionCount} transaction{transactionCount !== 1 ? 's' : ''}.
+              </span>
+            )}
           </p>
         </div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className={`grid ${getCorrelationLayout()} ${getCorrelationGap()}`}>
           <ScatterChart 
             data={chartData.throughputVsResponseTime}
             title="Throughput vs Response Time"
             xAxisLabel="Throughput (req/s)"
             yAxisLabel="Response Time (ms)"
+            height={getCorrelationChartHeight()}
           />
           <ScatterChart 
             data={chartData.usersVsResponseTime}
             title="Users vs Response Time"
             xAxisLabel="Active Users"
             yAxisLabel="Response Time (ms)"
+            height={getCorrelationChartHeight()}
           />
           <ScatterChart 
             data={chartData.errorsVsUsers}
             title="Errors vs Users"
             xAxisLabel="Active Users"
             yAxisLabel="Response Time (ms)"
+            height={getCorrelationChartHeight()}
           />
           <ScatterChart 
             data={chartData.errorsVsResponseTime}
             title="Errors vs Response Time"
             xAxisLabel="Response Time (ms)"
             yAxisLabel="Active Users"
+            height={getCorrelationChartHeight()}
           />
         </div>
       </div>
