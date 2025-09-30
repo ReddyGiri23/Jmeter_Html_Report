@@ -1079,11 +1079,13 @@ export const generateHTMLReport = (data: JMeterData, comparisonData?: { current:
                     return acc;
                 }, {});
                 
+                // Sort each group by x value for proper line connections
                 const datasets = Object.entries(groupedData).map(([label, points], index) => ({
                     label,
-                    data: points,
+                    data: points.sort((a, b) => a.x - b.x),
                     borderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 50%)\`,
                     backgroundColor: \`hsl(\${(index * 137.5) % 360}, 70%, 90%)\`,
+                    borderWidth: 2,
                     fill: false,
                     tension: 0.1
                 }));
@@ -1188,35 +1190,81 @@ export const generateHTMLReport = (data: JMeterData, comparisonData?: { current:
                 
                 // Chart 8: Throughput vs Response Time
                 const throughputVsResponseTimeCtx = document.getElementById('throughputVsResponseTimeChart').getContext('2d');
-                new Chart(throughputVsResponseTimeCtx, {
-                    type: 'scatter',
-                    data: {
-                        datasets: [{
-                            label: 'Transactions',
-                            data: ${JSON.stringify(data.chartData.throughputVsResponseTime)},
-                            backgroundColor: 'rgba(34, 197, 94, 0.6)',
-                            borderColor: 'rgb(34, 197, 94)'
-                        }]
+                
+                // Group data by label for line charts
+                const groupedData = ${JSON.stringify(data.chartData.throughputVsResponseTime)}.reduce((acc, point) => {
+                  if (!acc[point.label]) {
+                    acc[point.label] = [];
+                  }
+                  acc[point.label].push({ x: point.x, y: point.y });
+                  return acc;
+                }, {});
+
+                // Sort each group by x value for proper line connections
+                const datasets = Object.entries(groupedData).map(([label, points], index) => ({
+                  label: label,
+                  data: points.sort((a, b) => a.x - b.x),
+                  backgroundColor: \`hsla(\${(index * 137.5) % 360}, 70%, 50%, 0.6)\`,
+                  borderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 40%)\`,
+                  borderWidth: 2,
+                  fill: false,
+                  tension: 0.1,
+                  pointRadius: 4,
+                  pointHoverRadius: 6,
+                  pointBackgroundColor: \`hsl(\${(index * 137.5) % 360}, 70%, 50%)\`,
+                  pointBorderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 30%)\`,
+                  pointBorderWidth: 1,
+                  showLine: true,
+                }));
+
+                const config = {
+                  type: 'line',
+                  data: { datasets: datasets },
+                  options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                      intersect: false,
+                      mode: 'index'
                     },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            x: {
-                                title: {
-                                    display: true,
-                                    text: 'Throughput (req/s)'
-                                }
-                            },
-                            y: {
-                                title: {
-                                    display: true,
-                                    text: 'Response Time (ms)'
-                                }
-                            }
+                    scales: {
+                      x: {
+                        title: {
+                          display: true,
+                          text: 'Throughput (req/s)'
                         }
+                      },
+                      y: {
+                        title: {
+                          display: true,
+                          text: 'Response Time (ms)'
+                        }
+                      }
+                    },
+                    plugins: {
+                      title: {
+                        display: true,
+                        text: 'Throughput vs Response Time'
+                      },
+                      legend: {
+                        display: true,
+                        position: 'top'
+                      },
+                      tooltip: {
+                        callbacks: {
+                          title: function(context) {
+                            return context[0].dataset.label || '';
+                          },
+                          label: function(context) {
+                            return \`Throughput: \${context.parsed.x.toFixed(2)} req/s, Response Time: \${context.parsed.y.toFixed(0)} ms\`;
+                          }
+                        }
+                      }
                     }
-                });
+                  }
+                };
+                
+                new Chart(throughputVsResponseTimeCtx, config);
                 
                 // Chart 9: Users vs Response Time
                 const usersVsResponseTimeCtx = document.getElementById('usersVsResponseTimeChart').getContext('2d');
