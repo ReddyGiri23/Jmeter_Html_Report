@@ -8,6 +8,29 @@ interface ComparisonData {
 }
 
 export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData): string => {
+  // Calculate transaction count for dynamic layout
+  const transactionCount = data.transactions?.length || 0;
+  
+  // Dynamic CSS classes based on transaction count
+  const getCorrelationGridColumns = () => {
+    if (transactionCount <= 2) return '1fr';
+    if (transactionCount <= 4) return 'repeat(2, 1fr)';
+    if (transactionCount <= 8) return 'repeat(2, 1fr)';
+    return 'repeat(auto-fit, minmax(300px, 1fr))';
+  };
+  
+  const getCorrelationGap = () => {
+    if (transactionCount <= 4) return '30px';
+    if (transactionCount <= 8) return '25px';
+    return '20px';
+  };
+  
+  const getCorrelationChartHeight = () => {
+    if (transactionCount <= 2) return '600px';
+    if (transactionCount <= 4) return '500px';
+    if (transactionCount <= 8) return '450px';
+    return '400px';
+  };
   const formatDate = (timestamp: number): string => {
     return new Date(timestamp).toLocaleString();
   };
@@ -197,18 +220,21 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
         <!-- Performance Correlation Analysis -->
         <div class="correlation-section full-width">
           <h3 class="correlation-title">Performance Correlation Analysis</h3>
-          <p class="correlation-description">These scatter charts reveal relationships between different performance metrics, helping identify patterns and performance bottlenecks.</p>
+          <p class="correlation-description">
+            These scatter charts reveal relationships between different performance metrics, helping identify patterns and performance bottlenecks.
+            Layout optimized for ${transactionCount} transaction${transactionCount !== 1 ? 's' : ''}.
+          </p>
           <div class="correlation-grid">
-            <div class="chart-container">
+            <div class="correlation-chart-container">
               <canvas id="throughputVsResponseTimeChart"></canvas>
             </div>
-            <div class="chart-container">
+            <div class="correlation-chart-container">
               <canvas id="usersVsResponseTimeChart"></canvas>
             </div>
-            <div class="chart-container">
+            <div class="correlation-chart-container">
               <canvas id="errorsVsUsersChart"></canvas>
             </div>
-            <div class="chart-container">
+            <div class="correlation-chart-container">
               <canvas id="errorsVsResponseTimeChart"></canvas>
             </div>
           </div>
@@ -951,9 +977,17 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
         }
         
         .correlation-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
+          display: grid;
+          grid-template-columns: ${getCorrelationGridColumns()};
+          gap: ${getCorrelationGap()};
+        }
+        
+        .correlation-chart-container {
+          background: white;
+          padding: 20px;
+          border-radius: 10px;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+          height: ${getCorrelationChartHeight()};
         }
         
         .correlation-insights {
@@ -1266,6 +1300,11 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
             
             .correlation-grid {
                 grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .correlation-chart-container {
+                height: 400px;
             }
             
             .tabs {

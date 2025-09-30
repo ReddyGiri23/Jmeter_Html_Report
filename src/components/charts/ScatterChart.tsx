@@ -6,13 +6,15 @@ interface ScatterChartProps {
   title?: string;
   xAxisLabel?: string;
   yAxisLabel?: string;
+  height?: number;
 }
 
 const ScatterChart: React.FC<ScatterChartProps> = ({ 
   data, 
   title = 'Scatter Chart',
   xAxisLabel = 'X Axis',
-  yAxisLabel = 'Y Axis'
+  yAxisLabel = 'Y Axis',
+  height = 500
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<Chart | null>(null);
@@ -103,7 +105,7 @@ const ScatterChart: React.FC<ScatterChartProps> = ({
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
-      <div style={{ position: 'relative', height: '500px' }}>
+      <div style={{ position: 'relative', height: `${height}px` }}>
         <canvas ref={canvasRef}></canvas>
       </div>
     </div>
