@@ -914,7 +914,7 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            height: 500px;
+            height: 400px;
         }
         
         .chart-container.full-width {
