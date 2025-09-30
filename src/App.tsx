@@ -11,9 +11,6 @@ function App() {
   const [comparisonResult, setComparisonResult] = useState<ComparisonResult | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeTab, setActiveTab] = useState<'single' | 'comparison'>('single');
-  const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
-  const [activeErrorTransaction, setActiveErrorTransaction] = useState<string | null>(null);
-  const [reportActiveTab, setReportActiveTab] = useState<'dashboard' | 'errors'>('dashboard');
 
   const handleDataProcessed = (data: JMeterData) => {
     setJMeterData(data);
@@ -26,14 +23,6 @@ function App() {
   const handleReset = () => {
     setJMeterData(null);
     setComparisonResult(null);
-    setSelectedTransactions([]);
-    setActiveErrorTransaction(null);
-    setReportActiveTab('dashboard');
-  };
-
-  const handleTransactionErrorClick = (transactionLabel: string) => {
-    setActiveErrorTransaction(transactionLabel);
-    setReportActiveTab('errors');
   };
 
   return (
@@ -105,12 +94,6 @@ function App() {
             <ReportDashboard 
               data={jmeterData} 
               onReset={handleReset}
-              selectedTransactions={selectedTransactions}
-              onSelectedTransactionsChange={setSelectedTransactions}
-              activeErrorTransaction={activeErrorTransaction}
-              onTransactionErrorClick={handleTransactionErrorClick}
-              activeTab={reportActiveTab}
-              onTabChange={setReportActiveTab}
             />
           )
         ) : (
