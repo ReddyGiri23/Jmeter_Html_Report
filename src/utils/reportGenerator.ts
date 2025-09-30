@@ -1311,6 +1311,16 @@ import { JMeterData, TestSummary, ComparisonResult } from '../types/jmeter';
             .tab:last-child {
                 border-bottom: none;
             }
+            
+            .overall-comparison-grid {
+              grid-template-columns: 1fr;
+            }
+            
+            .metric-comparison {
+              flex-direction: column;
+              align-items: flex-start;
+              gap: 5px;
+            }
           
           .status-code-grid {
             grid-template-columns: 1fr;
