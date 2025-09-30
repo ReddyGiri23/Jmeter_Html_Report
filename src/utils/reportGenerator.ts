@@ -1,6 +1,6 @@
 import { JMeterData } from '../types/jmeter';
 
-export const generateHTMLReport = (data: JMeterData): string => {
+export const generateHTMLReport = (data: JMeterData, comparisonData?: { current: JMeterData; previous: JMeterData; fileName: string; previousFileName: string }): string => {
   // Generate additional chart data for new graphs
   const generateExtendedChartData = () => {
     // Hits per second (same as TPS)
@@ -436,6 +436,11 @@ export const generateHTMLReport = (data: JMeterData): string => {
                 <li class="nav-tab">
                     <button class="tab-btn" data-tab="errors">Error Report</button>
                 </li>
+                ${comparisonData ? `
+                <li class="nav-tab">
+                    <button class="tab-btn" data-tab="comparison">Comparison</button>
+                </li>
+                ` : ''}
             </ul>
         </div>
         
@@ -719,6 +724,165 @@ export const generateHTMLReport = (data: JMeterData): string => {
                     </div>
                 </div>
             </div>
+            
+            ${comparisonData ? `
+            <!-- Comparison Tab -->
+            <div id="comparison" class="tab-content">
+                <div class="header">
+                    <h2>Performance Comparison</h2>
+                    <p>Side-by-side comparison of current vs previous test results</p>
+                </div>
+                
+                <!-- Comparison Summary -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Test Comparison Summary</h3>
+                    </div>
+                    <div class="card-content">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="bg-blue-50 p-4 rounded-lg">
+                                <h4 class="font-semibold text-blue-900 mb-2">Current Test</h4>
+                                <p class="text-sm font-medium text-blue-800">${comparisonData.fileName}</p>
+                                <div class="text-xs text-blue-600 mt-2 space-y-1">
+                                    <p>Requests: ${comparisonData.current.summary.totalRequests.toLocaleString()}</p>
+                                    <p>Duration: ${comparisonData.current.summary.testDuration}s</p>
+                                    <p>Avg Response: ${comparisonData.current.summary.avgResponseTime.toFixed(0)}ms</p>
+                                    <p>Error Rate: ${comparisonData.current.summary.errorRate.toFixed(2)}%</p>
+                                </div>
+                            </div>
+                            <div class="bg-orange-50 p-4 rounded-lg">
+                                <h4 class="font-semibold text-orange-900 mb-2">Previous Test</h4>
+                                <p class="text-sm font-medium text-orange-800">${comparisonData.previousFileName}</p>
+                                <div class="text-xs text-orange-600 mt-2 space-y-1">
+                                    <p>Requests: ${comparisonData.previous.summary.totalRequests.toLocaleString()}</p>
+                                    <p>Duration: ${comparisonData.previous.summary.testDuration}s</p>
+                                    <p>Avg Response: ${comparisonData.previous.summary.avgResponseTime.toFixed(0)}ms</p>
+                                    <p>Error Rate: ${comparisonData.previous.summary.errorRate.toFixed(2)}%</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Detailed Comparison Table -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Transaction Comparison</h3>
+                    </div>
+                    <div class="card-content">
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Transaction</th>
+                                        <th>Avg Response Time</th>
+                                        <th>Change</th>
+                                        <th>Throughput</th>
+                                        <th>Change</th>
+                                        <th>Error Rate</th>
+                                        <th>Change</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${(() => {
+                                        // Generate comparison data
+                                        const currentTransactions = new Map(comparisonData.current.transactions.map(t => [t.label, t]));
+                                        const previousTransactions = new Map(comparisonData.previous.transactions.map(t => [t.label, t]));
+                                        const commonLabels = [...currentTransactions.keys()].filter(label => previousTransactions.has(label));
+                                        
+                                        return commonLabels.map((label, index) => {
+                                            const current = currentTransactions.get(label)!;
+                                            const previous = previousTransactions.get(label)!;
+                                            
+                                            const avgRTChange = ((current.avgResponseTime - previous.avgResponseTime) / previous.avgResponseTime) * 100;
+                                            const throughputChange = ((current.throughput - previous.throughput) / previous.throughput) * 100;
+                                            const errorRateChange = ((current.errorRate - previous.errorRate) / previous.errorRate) * 100;
+                                            
+                                            const getChangeColor = (change, isInverse = false) => {
+                                                const threshold = 5;
+                                                const isImprovement = isInverse ? change < -threshold : change > threshold;
+                                                const isRegression = isInverse ? change > threshold : change < -threshold;
+                                                
+                                                if (isImprovement) return 'color: #059669; background: #ecfdf5;';
+                                                if (isRegression) return 'color: #dc2626; background: #fef2f2;';
+                                                return 'color: #6b7280; background: #f9fafb;';
+                                            };
+                                            
+                                            const getChangeIcon = (change, isInverse = false) => {
+                                                const threshold = 5;
+                                                const isImprovement = isInverse ? change < -threshold : change > threshold;
+                                                const isRegression = isInverse ? change > threshold : change < -threshold;
+                                                
+                                                if (isImprovement) return '↑';
+                                                if (isRegression) return '↓';
+                                                return '→';
+                                            };
+                                            
+                                            const getStatus = () => {
+                                                let improvements = 0;
+                                                let regressions = 0;
+                                                
+                                                if (avgRTChange <= -5) improvements++;
+                                                else if (avgRTChange >= 5) regressions++;
+                                                
+                                                if (throughputChange >= 5) improvements++;
+                                                else if (throughputChange <= -5) regressions++;
+                                                
+                                                if (errorRateChange <= -5) improvements++;
+                                                else if (errorRateChange >= 5) regressions++;
+                                                
+                                                if (improvements > regressions) return { status: 'Improved', color: '#059669' };
+                                                if (regressions > improvements) return { status: 'Regressed', color: '#dc2626' };
+                                                return { status: 'Neutral', color: '#6b7280' };
+                                            };
+                                            
+                                            const status = getStatus();
+                                            
+                                            return `
+                                                <tr style="${index % 2 === 0 ? 'background: white;' : 'background: #f9fafb;'}">
+                                                    <td style="font-weight: 600;">${label}</td>
+                                                    <td>
+                                                        <div>${current.avgResponseTime.toFixed(0)}ms</div>
+                                                        <div style="font-size: 0.75rem; color: #6b7280;">vs ${previous.avgResponseTime.toFixed(0)}ms</div>
+                                                    </td>
+                                                    <td>
+                                                        <span style="padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; ${getChangeColor(avgRTChange, true)}">
+                                                            ${getChangeIcon(avgRTChange, true)} ${avgRTChange.toFixed(1)}%
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <div>${current.throughput.toFixed(2)}/s</div>
+                                                        <div style="font-size: 0.75rem; color: #6b7280;">vs ${previous.throughput.toFixed(2)}/s</div>
+                                                    </td>
+                                                    <td>
+                                                        <span style="padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; ${getChangeColor(throughputChange)}">
+                                                            ${getChangeIcon(throughputChange)} ${throughputChange.toFixed(1)}%
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <div>${current.errorRate.toFixed(2)}%</div>
+                                                        <div style="font-size: 0.75rem; color: #6b7280;">vs ${previous.errorRate.toFixed(2)}%</div>
+                                                    </td>
+                                                    <td>
+                                                        <span style="padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; ${getChangeColor(errorRateChange, true)}">
+                                                            ${getChangeIcon(errorRateChange, true)} ${errorRateChange.toFixed(1)}%
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <span style="color: ${status.color}; font-weight: 600;">${status.status}</span>
+                                                    </td>
+                                                </tr>
+                                            `;
+                                        }).join('');
+                                    })()}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            ` : ''}
         </div>
     </div>
     
