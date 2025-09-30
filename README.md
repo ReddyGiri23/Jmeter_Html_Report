@@ -112,22 +112,261 @@ npm run lint
 
 ## Integration
 
-### Jenkins Integration
-1. Generate HTML report using CLI
-2. Use Jenkins publishHTML plugin
-3. Archive the generated HTML file
+### CloudBees Jenkins Integration
+
+This tool integrates seamlessly with CloudBees Jenkins for automated performance reporting in CI/CD pipelines.
+
+#### Prerequisites
+- **Node.js**: Version 16 or higher installed on Jenkins agents
+- **Jenkins Plugins**:
+  - NodeJS Plugin (for Node.js environment management)
+  - HTML Publisher Plugin (for publishing HTML reports)
+
+#### Setup Steps
+
+1. **Install Required Jenkins Plugins**
+   ```
+   - Go to Jenkins → Manage Jenkins → Manage Plugins
+   - Install "NodeJS Plugin" and "HTML Publisher Plugin"
+   - Configure Node.js installation in Global Tool Configuration
+   ```
+
+2. **Create Jenkinsfile**
+   
+   Add this `Jenkinsfile` to your repository root:
+   
+   ```groovy
+   pipeline {
+       agent {
+           docker {
+               image 'node:18-alpine'
+               args '-u 0:0'
+           }
+       }
+   
+       stages {
+           stage('Checkout Code') {
+               steps {
+                   git branch: 'main', url: 'YOUR_REPOSITORY_URL'
+               }
+           }
+   
+           stage('Install Dependencies') {
+               steps {
+                   sh 'npm install'
+               }
+           }
+   
+           stage('Run JMeter Test') {
+               steps {
+                   // Example JMeter execution
+                   sh '''
+                       echo "Running JMeter test..."
+                       # Replace with your actual JMeter command
+                       # ${JMETER_HOME}/bin/jmeter -n -t testplan.jmx -l test-results.jtl
+                       cp test-sample.jtl test-results.jtl
+                   '''
+               }
+           }
+   
+           stage('Generate Performance Report') {
+               steps {
+                   sh 'npm run generate-report -- -i test-results.jtl -o jmeter-report.html'
+               }
+           }
+   
+           stage('Publish HTML Report') {
+               steps {
+                   publishHTML([
+                       allowMissing: false,
+                       alwaysLinkToLastBuild: true,
+                       keepAll: true,
+                       reportDir: '.',
+                       reportFiles: 'jmeter-report.html',
+                       reportName: 'JMeter Performance Report'
+                   ])
+               }
+           }
+       }
+   
+       post {
+           always {
+               // Archive JTL files for debugging
+               archiveArtifacts artifacts: '*.jtl', allowEmptyArchive: true
+               cleanWs()
+           }
+           failure {
+               // Send notifications on failure
+               echo 'Performance test failed!'
+           }
+       }
+   }
+   ```
+
+3. **Configure Jenkins Pipeline Job**
+   ```
+   - Create new Pipeline job in Jenkins
+   - Configure SCM to point to your repository
+   - Set branch to contain the Jenkinsfile
+   - Save and build
+   ```
+
+4. **View Reports**
+   ```
+   - After successful build, click "JMeter Performance Report" link
+   - Reports are archived for each build
+   - Compare performance across builds
+   ```
+
+#### Advanced Jenkins Configuration
+
+**Using Configuration Files**
+
+Create a `jenkins-config.json` in your repository:
+```json
+{
+  "slaThresholds": {
+    "avgResponseTime": 3000,
+    "throughput": 0.03055,
+    "errorRate": 10
+  },
+  "reportOptions": {
+    "includeCharts": true,
+    "maxErrorSamples": 200,
+    "samplingRate": 2
+  },
+  "testConfig": {
+    "testEnvironment": "PPE02"
+  }
+}
+```
+
+Then use it in your pipeline:
+```groovy
+sh 'npm run generate-report -- -i test-results.jtl -f jenkins-config.json -o jmeter-report.html'
+```
+
+**Comparison Reports in Jenkins**
+
+For performance regression detection:
+```groovy
+stage('Generate Comparison Report') {
+    when {
+        not { changeRequest() } // Only on main branch
+    }
+    steps {
+        script {
+            // Get previous build's JTL file
+            def previousBuild = currentBuild.previousSuccessfulBuild
+            if (previousBuild) {
+                copyArtifacts(
+                    projectName: env.JOB_NAME,
+                    selector: specific("${previousBuild.number}"),
+                    filter: 'test-results.jtl',
+                    target: 'previous/'
+                )
+                sh '''
+                    npm run generate-report -- \
+                        -c test-results.jtl \
+                        -p previous/test-results.jtl \
+                        -o comparison-report.html
+                '''
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: '.',
+                    reportFiles: 'comparison-report.html',
+                    reportName: 'Performance Comparison Report'
+                ])
+            }
+        }
+    }
+}
+```
+
+**SLA Gates Integration**
+
+Fail builds based on SLA violations:
+```groovy
+stage('Check SLA Gates') {
+    steps {
+        script {
+            // Parse the generated report or use exit codes
+            def reportExists = fileExists('jmeter-report.html')
+            if (!reportExists) {
+                error('Performance report generation failed')
+            }
+            
+            // You can extend this to parse SLA results and fail the build
+            echo 'SLA gates passed - build continues'
+        }
+    }
+}
+```
 
 ### CI/CD Pipeline
-```yaml
-# Example GitHub Actions step
-- name: Generate JMeter Report
-  run: npm run generate-report -- -i test-results.jtl -o jmeter-report.html
 
-- name: Upload Report
-  uses: actions/upload-artifact@v3
-  with:
-    name: jmeter-report
-    path: jmeter-report.html
+#### GitHub Actions Example
+```yaml
+name: Performance Testing
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  performance-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm install
+    
+    - name: Run JMeter Test
+      run: |
+        # Your JMeter test execution
+        cp test-sample.jtl test-results.jtl
+    
+    - name: Generate Performance Report
+      run: npm run generate-report -- -i test-results.jtl -o jmeter-report.html
+    
+    - name: Upload Performance Report
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-report
+        path: jmeter-report.html
+```
+
+#### GitLab CI Example
+```yaml
+stages:
+  - test
+  - report
+
+performance-test:
+  stage: test
+  image: node:18-alpine
+  script:
+    - npm install
+    - cp test-sample.jtl test-results.jtl  # Replace with actual JMeter execution
+    - npm run generate-report -- -i test-results.jtl -o jmeter-report.html
+  artifacts:
+    reports:
+      performance: jmeter-report.html
+    paths:
+      - jmeter-report.html
+    expire_in: 30 days
 ```
 
 ## Troubleshooting
