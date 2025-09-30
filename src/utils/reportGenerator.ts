@@ -23,15 +23,15 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
   
   // Dynamic CSS classes based on transaction count
   const getCorrelationGridColumns = () => {
-    return 'repeat(2, 1fr)'; // Always 2 columns for maximum horizontal space
+    return '1fr'; // Single column for maximum horizontal space
   };
   
   const getCorrelationGap = () => {
-    return '30px'; // Consistent larger gaps
+    return '40px'; // Larger gaps
   };
   
   const getCorrelationChartHeight = () => {
-    return '450px'; // Fixed height for all charts
+    return '600px'; // Larger height for better visibility
   };
 
   const formatDate = (timestamp: number): string => {

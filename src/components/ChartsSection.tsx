@@ -23,15 +23,15 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData }) => {
   };
   
   const getCorrelationLayout = () => {
-    return 'grid-cols-2'; // Always 2 columns for maximum horizontal space
+    return 'grid-cols-1'; // Single column for maximum horizontal space
   };
   
   const getCorrelationGap = () => {
-    return 'gap-8'; // Consistent larger gaps for better spacing
+    return 'gap-12'; // Larger gaps for better spacing
   };
   
   const getCorrelationChartHeight = () => {
-    return 450; // Fixed height for all charts
+    return 600; // Larger height for better visibility
   };
 
   return (
