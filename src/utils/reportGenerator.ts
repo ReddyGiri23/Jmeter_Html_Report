@@ -1184,6 +1184,98 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
           border-color: #9ca3af;
         }
         
+        .sla-heatmap-section {
+          padding: 20px 0;
+        }
+        
+        .sla-heatmap-table {
+          margin: 30px 0;
+          overflow-x: auto;
+        }
+        
+        .sla-cell {
+          text-align: center;
+          padding: 12px 8px;
+          border-radius: 6px;
+          margin: 2px;
+        }
+        
+        .sla-cell.sla-pass {
+          background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+          color: #065f46;
+          border: 1px solid #10b981;
+        }
+        
+        .sla-cell.sla-fail {
+          background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+          color: #991b1b;
+          border: 1px solid #ef4444;
+        }
+        
+        .sla-value {
+          display: block;
+          font-weight: 600;
+          font-size: 0.9rem;
+        }
+        
+        .sla-status {
+          display: block;
+          font-size: 0.8rem;
+          margin-top: 4px;
+        }
+        
+        .overall-status {
+          font-weight: 700;
+        }
+        
+        .transaction-name {
+          font-weight: 600;
+          text-align: left;
+        }
+        
+        .sla-summary {
+          margin-top: 40px;
+        }
+        
+        .summary-stats {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 20px;
+        }
+        
+        .stat-card {
+          padding: 20px;
+          border-radius: 10px;
+          text-align: center;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .stat-card.pass {
+          background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+          color: #065f46;
+        }
+        
+        .stat-card.fail {
+          background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+          color: #991b1b;
+        }
+        
+        .stat-card.compliance {
+          background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+          color: #1e40af;
+        }
+        
+        .stat-value {
+          font-size: 2.5rem;
+          font-weight: 700;
+          margin-bottom: 8px;
+        }
+        
+        .stat-label {
+          font-size: 0.9rem;
+          opacity: 0.9;
+        }
+        
         .no-errors {
             text-align: center;
             padding: 60px 20px;
