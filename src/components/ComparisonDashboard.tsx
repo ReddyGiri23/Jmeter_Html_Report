@@ -236,9 +236,10 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ comparisonRes
 
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead>
-              <tr>
-                <th 
+                    <div className={`inline-flex items-center px-2 py-1 rounded border text-xs ${getChangeColor(metric.changes.avgResponseTime, true)}`}>
+                      {getChangeIcon(metric.changes.avgResponseTime, true)}
+                      <span className="ml-1">${metric.changes.avgResponseTime.toFixed(1)}%</span>
+                    </div>
                   className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('label')}
                 >
@@ -246,9 +247,10 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ comparisonRes
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
-                </th>
-                <th 
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    <div className={`inline-flex items-center px-2 py-1 rounded border text-xs ${getChangeColor(metric.changes.p90ResponseTime, true)}`}>
+                      {getChangeIcon(metric.changes.p90ResponseTime, true)}
+                      <span className="ml-1">${metric.changes.p90ResponseTime.toFixed(1)}%</span>
+                    </div>
                   onClick={() => handleSort('avgResponseTime')}
                 >
                   Avg Response Time
@@ -256,9 +258,10 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ comparisonRes
                 <th 
                   className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('p90ResponseTime')}
-                >
-                  90th Percentile
-                </th>
+                    <div className={`inline-flex items-center px-2 py-1 rounded border text-xs ${getChangeColor(metric.changes.throughput)}`}>
+                      {getChangeIcon(metric.changes.throughput)}
+                      <span className="ml-1">${metric.changes.throughput.toFixed(1)}%</span>
+                    </div>
                 <th 
                   className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('throughput')}
@@ -266,9 +269,10 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ comparisonRes
                   Throughput
                 </th>
                 <th 
-                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('errorRate')}
-                >
+                    <div className={`inline-flex items-center px-2 py-1 rounded border text-xs ${getChangeColor(metric.changes.errorRate, true)}`}>
+                      {getChangeIcon(metric.changes.errorRate, true)}
+                      <span className="ml-1">${metric.changes.errorRate.toFixed(1)}%</span>
+                    </div>
                   Error Rate
                 </th>
               </tr>
