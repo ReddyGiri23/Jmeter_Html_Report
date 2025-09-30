@@ -23,9 +23,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData }) => {
   };
   
   const getCorrelationLayout = () => {
-    if (transactionCount <= 2) return 'grid-cols-1'; // Single column for 1-2 transactions
-    if (transactionCount <= 4) return 'grid-cols-1 lg:grid-cols-2'; // 2 columns for 3-4 transactions
-    return 'grid-cols-1 lg:grid-cols-2'; // 2 columns maximum for better horizontal space
+    return 'grid-cols-2'; // Always 2 columns for maximum horizontal space
   };
   
   const getCorrelationGap = () => {
@@ -33,9 +31,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData }) => {
   };
   
   const getCorrelationChartHeight = () => {
-    if (transactionCount <= 2) return 700; // Larger charts for fewer transactions
-    if (transactionCount <= 4) return 650; // Medium size
-    return 600; // Larger charts for better visibility
+    return 450; // Fixed height for all charts
   };
 
   return (

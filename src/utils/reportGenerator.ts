@@ -23,8 +23,7 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
   
   // Dynamic CSS classes based on transaction count
   const getCorrelationGridColumns = () => {
-    if (transactionCount <= 2) return '1fr';
-    return 'repeat(2, 1fr)'; // Always use 2 columns for better horizontal space
+    return 'repeat(2, 1fr)'; // Always 2 columns for maximum horizontal space
   };
   
   const getCorrelationGap = () => {
@@ -32,9 +31,7 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
   };
   
   const getCorrelationChartHeight = () => {
-    if (transactionCount <= 2) return '700px';
-    if (transactionCount <= 4) return '650px';
-    return '600px'; // Larger charts for better visibility
+    return '450px'; // Fixed height for all charts
   };
 
   const formatDate = (timestamp: number): string => {
