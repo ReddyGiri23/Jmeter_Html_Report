@@ -7,9 +7,6 @@ interface ScatterChartProps {
   xAxisLabel?: string;
   yAxisLabel?: string;
   height?: number;
-  trendlineData?: { slope: number; intercept: number; rSquared: number } | null;
-  showTrendline?: boolean;
-  onExport?: () => void;
 }
 
 const ScatterChart: React.FC<ScatterChartProps> = ({ 
@@ -17,24 +14,11 @@ const ScatterChart: React.FC<ScatterChartProps> = ({
   title = 'Scatter Chart',
   xAxisLabel = 'X Axis',
   yAxisLabel = 'Y Axis',
-  height = 600,
-  trendlineData = null,
-  showTrendline = true,
-  onExport
+  height = 600
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<Chart | null>(null);
 
-  const handleExport = () => {
-    if (chartRef.current && onExport) {
-      const canvas = chartRef.current.canvas;
-      const url = canvas.toDataURL('image/png');
-      const link = document.createElement('a');
-      link.download = `${title.replace(/\s+/g, '_').toLowerCase()}.png`;
-      link.href = url;
-      link.click();
-    }
-  };
   useEffect(() => {
     if (!canvasRef.current || !data || data.length === 0) return;
 
@@ -62,37 +46,11 @@ const ScatterChart: React.FC<ScatterChartProps> = ({
       pointBackgroundColor: `hsl(${(index * 137.5) % 360}, 70%, 50%)`,
       pointBorderColor: `hsl(${(index * 137.5) % 360}, 70%, 30%)`,
       pointBorderWidth: 1,
-      showLine: true,
-      fill: false,
-      tension: 0.1,
+      showLine: false,
     }));
 
-    // Add trendline dataset if available and enabled
-    if (trendlineData && showTrendline && data.length > 0) {
-      const xValues = data.map(d => d.x);
-      const minX = Math.min(...xValues);
-      const maxX = Math.max(...xValues);
-      
-      const trendlinePoints = [
-        { x: minX, y: trendlineData.slope * minX + trendlineData.intercept },
-        { x: maxX, y: trendlineData.slope * maxX + trendlineData.intercept }
-      ];
-
-      datasets.push({
-        label: `Trendline (R² = ${trendlineData.rSquared.toFixed(3)})`,
-        data: trendlinePoints,
-        backgroundColor: 'rgba(255, 99, 132, 0.1)',
-        borderColor: 'rgba(255, 99, 132, 0.8)',
-        borderWidth: 2,
-        pointRadius: 0,
-        pointHoverRadius: 0,
-        showLine: true,
-        fill: false,
-        borderDash: [5, 5],
-      });
-    }
     chartRef.current = new Chart(canvasRef.current, {
-      type: 'line',
+      type: 'scatter',
       data: { datasets },
       options: {
         responsive: true,
@@ -143,7 +101,7 @@ const ScatterChart: React.FC<ScatterChartProps> = ({
         chartRef.current.destroy();
       }
     };
-  }, [data, title, xAxisLabel, yAxisLabel, trendlineData, showTrendline]);
+  }, [data, title, xAxisLabel, yAxisLabel]);
 
   if (!data || data.length === 0) {
     return (
@@ -160,15 +118,6 @@ const ScatterChart: React.FC<ScatterChartProps> = ({
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-        <button
-          onClick={handleExport}
-          className="inline-flex items-center px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-        >
-          📊 Export PNG
-        </button>
-      </div>
       <div style={{ position: 'relative', height: `${height}px` }}>
         <canvas ref={canvasRef}></canvas>
       </div>

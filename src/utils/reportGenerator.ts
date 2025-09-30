@@ -208,41 +208,21 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
           <p class="section-description">These charts show how your system performs over the duration of the test, helping identify trends, spikes, and performance patterns over time.</p>
         </div>
         <div class="chart-container">
-          <div class="chart-header">
-            <h4>Response Times Over Time</h4>
-            <button onclick="exportChart('responseTimesChart', 'response-times-over-time')" class="export-btn">📊 Export PNG</button>
-          </div>
           <canvas id="responseTimesChart"></canvas>
         </div>
         <div class="chart-container">
-          <div class="chart-header">
-            <h4>Throughput Over Time</h4>
-            <button onclick="exportChart('throughputChart', 'throughput-over-time')" class="export-btn">📊 Export PNG</button>
-          </div>
           <canvas id="throughputChart"></canvas>
         </div>
         <div class="chart-container">
-          <div class="chart-header">
-            <h4>Errors Over Time</h4>
-            <button onclick="exportChart('errorsChart', 'errors-over-time')" class="export-btn">📊 Export PNG</button>
-          </div>
           <canvas id="errorsChart"></canvas>
         </div>
         <div class="chart-container">
-          <div class="chart-header">
-            <h4>Hits Over Time</h4>
-            <button onclick="exportChart('hitsChart', 'hits-over-time')" class="export-btn">📊 Export PNG</button>
-          </div>
           <canvas id="hitsChart"></canvas>
         </div>
         
         <!-- Percentiles Chart -->
         ${data.chartData.percentiles && data.chartData.percentiles.length > 0 ? `
         <div class="chart-container full-width">
-          <div class="chart-header">
-            <h4>Response Time Percentiles</h4>
-            <button onclick="exportChart('percentilesChart', 'response-time-percentiles')" class="export-btn">📊 Export PNG</button>
-          </div>
           <canvas id="percentilesChart"></canvas>
         </div>
         ` : ''}
@@ -256,31 +236,15 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
           </p>
           <div class="correlation-grid">
             <div class="correlation-chart-container">
-              <div class="chart-header">
-                <h4>Throughput vs Response Time</h4>
-                <button onclick="exportChart('throughputVsResponseTimeChart', 'throughput-vs-response-time')" class="export-btn">📊 Export PNG</button>
-              </div>
               <canvas id="throughputVsResponseTimeChart"></canvas>
             </div>
             <div class="correlation-chart-container">
-              <div class="chart-header">
-                <h4>Users vs Response Time</h4>
-                <button onclick="exportChart('usersVsResponseTimeChart', 'users-vs-response-time')" class="export-btn">📊 Export PNG</button>
-              </div>
               <canvas id="usersVsResponseTimeChart"></canvas>
             </div>
             <div class="correlation-chart-container">
-              <div class="chart-header">
-                <h4>Errors vs Users</h4>
-                <button onclick="exportChart('errorsVsUsersChart', 'errors-vs-users')" class="export-btn">📊 Export PNG</button>
-              </div>
               <canvas id="errorsVsUsersChart"></canvas>
             </div>
             <div class="correlation-chart-container">
-              <div class="chart-header">
-                <h4>Errors vs Response Time</h4>
-                <button onclick="exportChart('errorsVsResponseTimeChart', 'errors-vs-response-time')" class="export-btn">📊 Export PNG</button>
-              </div>
               <canvas id="errorsVsResponseTimeChart"></canvas>
             </div>
           </div>
@@ -477,18 +441,13 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
 
   const generateChartScripts = () => `
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.2.1/dist/chartjs-plugin-annotation.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <script>
-      // Register the annotation plugin
-      Chart.register(ChartAnnotation);
-      
       // Chart data
       const chartData = ${JSON.stringify(data.chartData)};
-      const slaResults = ${JSON.stringify(data.slaResults)};
       
       // Helper function to create scatter chart
-      function createScatterChart(ctx, data, title, xLabel, yLabel, trendlineData = null) {
+      function createScatterChart(ctx, data, title, xLabel, yLabel) {
         if (!data || data.length === 0) return null;
         
         const groupedData = data.reduce((acc, point) => {
@@ -497,45 +456,19 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
           return acc;
         }, {});
         
-        const datasets = Object.entries(groupedData).map(([label, points], index) => ({
-          label,
-          data: points,
-          backgroundColor: \`hsla(\${(index * 137.5) % 360}, 70%, 50%, 0.6)\`,
-          borderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 40%)\`,
-          borderWidth: 2,
-          pointRadius: 4,
-          pointHoverRadius: 6,
-          showLine: true,
-          fill: false,
-          tension: 0.1,
-        }));
-        
-        // Add trendline if available
-        if (trendlineData && data.length > 0) {
-          const xValues = data.map(d => d.x);
-          const minX = Math.min(...xValues);
-          const maxX = Math.max(...xValues);
-          
-          const trendlinePoints = [
-            { x: minX, y: trendlineData.slope * minX + trendlineData.intercept },
-            { x: maxX, y: trendlineData.slope * maxX + trendlineData.intercept }
-          ];
-
-          datasets.push({
-            label: \`Trendline (R² = \${trendlineData.rSquared.toFixed(3)})\`,
-            data: trendlinePoints,
-            backgroundColor: 'rgba(255, 99, 132, 0.1)',
-            borderColor: 'rgba(255, 99, 132, 0.8)',
-            borderWidth: 2,
-            pointRadius: 0,
-            pointHoverRadius: 0,
-            showLine: true,
-            fill: false,
-            borderDash: [5, 5],
-          });
-        }
-        
-            datasets: datasets
+        return new Chart(ctx, {
+          type: 'scatter',
+          data: {
+            datasets: Object.entries(groupedData).map(([label, points], index) => ({
+              label,
+              data: points,
+              backgroundColor: \`hsla(\${(index * 137.5) % 360}, 70%, 50%, 0.6)\`,
+              borderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 40%)\`,
+              borderWidth: 1,
+              pointRadius: 4,
+              pointHoverRadius: 6,
+              showLine: false,
+            }))
           },
           options: {
             responsive: true,
@@ -550,18 +483,6 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
             }
           }
         });
-      }
-      
-      // Export chart function
-      function exportChart(chartId, filename) {
-        const canvas = document.getElementById(chartId);
-        if (canvas) {
-          const url = canvas.toDataURL('image/png');
-          const link = document.createElement('a');
-          link.download = filename + '.png';
-          link.href = url;
-          link.click();
-        }
       }
       
       // Response Times Chart
@@ -598,25 +519,8 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
           },
           plugins: {
             title: { display: true, text: 'Response Times Over Time' },
-          plugins: {
-            title: { display: true, text: 'Response Times Over Time' },
-            legend: { display: true, position: 'top' },
-            annotation: {
-              annotations: {
-                slaLine: {
-                  type: 'line',
-                  yMin: slaResults.avgResponseTime.threshold,
-                  yMax: slaResults.avgResponseTime.threshold,
-                  borderColor: slaResults.avgResponseTime.passed ? 'rgba(34, 197, 94, 0.8)' : 'rgba(239, 68, 68, 0.8)',
-                  borderWidth: 2,
-                  borderDash: [5, 5],
-                  label: {
-                    content: \`SLA Threshold: \${slaResults.avgResponseTime.threshold}ms\`,
-                    enabled: true,
-                    position: 'end'
-                  }
-                }
-              }
+            legend: { display: true, position: 'top' }
+          }
         }
       });
       
@@ -644,30 +548,11 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
               type: 'time',
               title: { display: true, text: 'Elapsed Time' }
             },
-            y: { 
-              title: { display: true, text: 'Requests/sec' }
-            }
+            y: { title: { display: true, text: 'Requests/sec' } }
           },
           plugins: {
             title: { display: true, text: 'Throughput Over Time' },
-            legend: { display: false },
-            annotation: {
-              annotations: {
-                slaLine: {
-                  type: 'line',
-                  yMin: slaResults.averageThroughput.threshold,
-                  yMax: slaResults.averageThroughput.threshold,
-                  borderColor: slaResults.averageThroughput.passed ? 'rgba(34, 197, 94, 0.8)' : 'rgba(239, 68, 68, 0.8)',
-                  borderWidth: 2,
-                  borderDash: [5, 5],
-                  label: {
-                    content: \`SLA Threshold: \${(slaResults.averageThroughput.threshold * 3600).toFixed(0)} TPH\`,
-                    enabled: true,
-                    position: 'end'
-                  }
-                }
-              }
-            }
+            legend: { display: false }
           }
         }
       });
@@ -825,7 +710,6 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
         chartData.errorsVsResponseTime,
         'Errors vs Response Time',
         'Response Time (ms)',
-        chartData.throughputVsResponseTimeTrend
         'Active Users'
       );
     </script>
@@ -835,7 +719,6 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
 <!DOCTYPE html>
 <html lang="en">
 <head>
-        chartData.usersVsResponseTimeTrend
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JMeter Performance Report</title>
@@ -1150,130 +1033,6 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
             color: #7c3aed;
             font-size: 0.9rem;
             margin-bottom: 20px;
-        }
-        
-        .chart-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 15px;
-          padding-bottom: 10px;
-          border-bottom: 1px solid #e5e7eb;
-        }
-        
-        .chart-header h4 {
-          margin: 0;
-          font-size: 1.1rem;
-          font-weight: 600;
-          color: #374151;
-        }
-        
-        .export-btn {
-          background: #f3f4f6;
-          border: 1px solid #d1d5db;
-          border-radius: 6px;
-          padding: 6px 12px;
-          font-size: 0.875rem;
-          color: #374151;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-        
-        .export-btn:hover {
-          background: #e5e7eb;
-          border-color: #9ca3af;
-        }
-        
-        .sla-heatmap-section {
-          padding: 20px 0;
-        }
-        
-        .sla-heatmap-table {
-          margin: 30px 0;
-          overflow-x: auto;
-        }
-        
-        .sla-cell {
-          text-align: center;
-          padding: 12px 8px;
-          border-radius: 6px;
-          margin: 2px;
-        }
-        
-        .sla-cell.sla-pass {
-          background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-          color: #065f46;
-          border: 1px solid #10b981;
-        }
-        
-        .sla-cell.sla-fail {
-          background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-          color: #991b1b;
-          border: 1px solid #ef4444;
-        }
-        
-        .sla-value {
-          display: block;
-          font-weight: 600;
-          font-size: 0.9rem;
-        }
-        
-        .sla-status {
-          display: block;
-          font-size: 0.8rem;
-          margin-top: 4px;
-        }
-        
-        .overall-status {
-          font-weight: 700;
-        }
-        
-        .transaction-name {
-          font-weight: 600;
-          text-align: left;
-        }
-        
-        .sla-summary {
-          margin-top: 40px;
-        }
-        
-        .summary-stats {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 20px;
-        }
-        
-        .stat-card {
-          padding: 20px;
-          border-radius: 10px;
-          text-align: center;
-          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        
-        .stat-card.pass {
-          background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-          color: #065f46;
-        }
-        
-        .stat-card.fail {
-          background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-          color: #991b1b;
-        }
-        
-        .stat-card.compliance {
-          background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-          color: #1e40af;
-        }
-        
-        .stat-value {
-          font-size: 2.5rem;
-          font-weight: 700;
-          margin-bottom: 8px;
-        }
-        
-        .stat-label {
-          font-size: 0.9rem;
-          opacity: 0.9;
         }
         
         .no-errors {
@@ -1725,7 +1484,6 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
             tabContents.forEach(content => content.classList.remove('active'));
             
             // Remove active class from all tabs
-        chartData.errorsVsUsersTrend
             const tabs = document.querySelectorAll('.tab');
             tabs.forEach(tab => tab.classList.remove('active'));
             
@@ -1734,7 +1492,6 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
             
             // Add active class to clicked tab
             event.target.classList.add('active');
-        chartData.errorsVsResponseTimeTrend
         }
     </script>
     

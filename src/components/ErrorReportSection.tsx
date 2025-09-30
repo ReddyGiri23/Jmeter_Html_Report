@@ -4,17 +4,13 @@ import { ErrorSample } from '../types/jmeter';
 
 interface ErrorReportSectionProps {
   errorSamples: ErrorSample[];
-  highlightTransactionLabel?: string | null;
 }
 
-const ErrorReportSection: React.FC<ErrorReportSectionProps> = ({ errorSamples, highlightTransactionLabel }) => {
+const ErrorReportSection: React.FC<ErrorReportSectionProps> = ({ errorSamples }) => {
   const formatTimestamp = (timestamp: number): string => {
     return new Date(timestamp).toLocaleString();
   };
 
-  const isHighlighted = (errorLabel: string): boolean => {
-    return highlightTransactionLabel === errorLabel;
-  };
   if (errorSamples.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow-md p-6">
@@ -45,13 +41,6 @@ const ErrorReportSection: React.FC<ErrorReportSectionProps> = ({ errorSamples, h
         </span>
       </div>
 
-      {highlightTransactionLabel && (
-        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-          <p className="text-sm text-yellow-800">
-            <strong>Filtering errors for transaction:</strong> {highlightTransactionLabel}
-          </p>
-        </div>
-      )}
       <div className="mb-4">
         <p className="text-sm text-gray-600">
           Showing up to 50 failed samples for investigation. Review these errors to identify patterns and root causes.
@@ -87,20 +76,11 @@ const ErrorReportSection: React.FC<ErrorReportSectionProps> = ({ errorSamples, h
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {errorSamples.map((error, index) => (
-              <tr 
-                key={index} 
-                className={`${
-                  isHighlighted(error.label) 
-                    ? 'bg-yellow-100 border-l-4 border-yellow-400' 
-                    : index % 2 === 0 ? 'bg-white' : 'bg-red-50'
-                }`}
-              >
+              <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-red-50'}>
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                   {formatTimestamp(error.timestamp)}
                 </td>
-                <td className={`px-4 py-4 whitespace-nowrap text-sm font-medium ${
-                  isHighlighted(error.label) ? 'text-yellow-900' : 'text-gray-900'
-                }`}>
+                <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                   {error.label}
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">

@@ -519,12 +519,7 @@ const generateChartData = (samples: JMeterSample[], transactions: TransactionMet
     throughputVsResponseTime,
     usersVsResponseTime,
     errorsVsUsers,
-    errorsVsResponseTime,
-    // Calculate trendlines for correlation charts
-    throughputVsResponseTimeTrend: calculateLinearRegression(throughputVsResponseTime),
-    usersVsResponseTimeTrend: calculateLinearRegression(usersVsResponseTime),
-    errorsVsUsersTrend: calculateLinearRegression(errorsVsUsers),
-    errorsVsResponseTimeTrend: calculateLinearRegression(errorsVsResponseTime)
+    errorsVsResponseTime
   };
 
   log('Generated chart data with data points:', {

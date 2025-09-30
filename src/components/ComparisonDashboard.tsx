@@ -84,8 +84,8 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ comparisonRes
     const isImprovement = isInverse ? change < -threshold : change > threshold;
     const isRegression = isInverse ? change > threshold : change < -threshold;
 
-    if (isImprovement) return 'text-green-700 bg-green-100 border-green-200 font-semibold';
-    if (isRegression) return 'text-red-700 bg-red-100 border-red-200 font-semibold';
+    if (isImprovement) return 'text-green-600 bg-green-50';
+    if (isRegression) return 'text-red-600 bg-red-50';
     return 'text-gray-600 bg-gray-50';
   };
 
@@ -236,7 +236,7 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ comparisonRes
 
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead>
+            <thead className="bg-gray-50">
               <tr>
                 <th 
                   className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
