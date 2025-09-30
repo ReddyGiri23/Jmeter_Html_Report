@@ -6,6 +6,7 @@ import ThroughputChart from './charts/ThroughputChart';
 import ErrorsChart from './charts/ErrorsChart';
 import HitsChart from './charts/HitsChart';
 import ScatterChart from './charts/ScatterChart';
+import PercentilesChart from './charts/PercentilesChart';
 
 interface ChartsSectionProps {
   chartData: ChartData;
@@ -18,15 +19,13 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData }) => {
   // Dynamic layout based on transaction count
   const getTimeSeriesLayout = () => {
     if (transactionCount <= 2) return 'grid-cols-1'; // Single column for 1-2 transactions
-    if (transactionCount <= 5) return 'grid-cols-1 lg:grid-cols-2'; // 2 columns for 3-5 transactions
-    return 'grid-cols-1 lg:grid-cols-2'; // Default 2 columns for many transactions
+    return 'grid-cols-1 lg:grid-cols-2'; // 2 columns for 3+ transactions
   };
   
   const getCorrelationLayout = () => {
     if (transactionCount <= 2) return 'grid-cols-1'; // Single column for 1-2 transactions
     if (transactionCount <= 4) return 'grid-cols-1 lg:grid-cols-2'; // 2 columns for 3-4 transactions
-    if (transactionCount <= 8) return 'grid-cols-1 lg:grid-cols-2 xl:grid-cols-2'; // 2 columns for 5-8 transactions
-    return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'; // Up to 4 columns for many transactions
+    return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4'; // Up to 4 columns for many transactions
   };
   
   const getCorrelationGap = () => {
@@ -37,10 +36,11 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData }) => {
   
   const getCorrelationChartHeight = () => {
     if (transactionCount <= 2) return 600; // Larger charts for fewer transactions
-    if (transactionCount <= 4) return 500; // Medium size
-    if (transactionCount <= 8) return 450; // Smaller for more charts
-    return 400; // Compact for many charts
+    if (transactionCount <= 4) return 550; // Medium size
+    if (transactionCount <= 8) return 500; // Smaller for more charts
+    return 450; // Compact for many charts
   };
+
   return (
     <div className="space-y-8">
       {/* Time-Series Charts */}
@@ -70,6 +70,13 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData }) => {
         <ErrorsChart data={chartData.errorsOverTime} />
         <HitsChart data={chartData.hitsOverTime} />
       </div>
+
+      {/* Percentiles Chart */}
+      {chartData.percentiles && chartData.percentiles.length > 0 && (
+        <div className="mt-8">
+          <PercentilesChart data={chartData.percentiles} />
+        </div>
+      )}
 
       {/* Performance Correlation Analysis */}
       <div className="mt-8">

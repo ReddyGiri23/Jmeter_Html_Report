@@ -1,4 +1,21 @@
-import { JMeterData, TestSummary, ComparisonResult } from '../types/jmeter';
+import { JMeterData, ComparisonResult } from '../types/jmeter';
+
+interface ComparisonData {
+  fileName: string;
+  previousFileName: string;
+  current: {
+    totalRequests: number;
+    avgResponseTime: number;
+    overallThroughput: number;
+    errorRate: number;
+  };
+  previous: {
+    totalRequests: number;
+    avgResponseTime: number;
+    overallThroughput: number;
+    errorRate: number;
+  };
+}
 
 export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResult) => {
   // Calculate transaction count for dynamic layout
@@ -20,10 +37,11 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
   
   const getCorrelationChartHeight = () => {
     if (transactionCount <= 2) return '600px';
-    if (transactionCount <= 4) return '500px';
-    if (transactionCount <= 8) return '450px';
-    return '400px';
+    if (transactionCount <= 4) return '550px';
+    if (transactionCount <= 8) return '500px';
+    return '450px';
   };
+
   const formatDate = (timestamp: number): string => {
     return new Date(timestamp).toLocaleString();
   };
@@ -210,6 +228,13 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
           <canvas id="hitsChart"></canvas>
         </div>
         
+        <!-- Percentiles Chart -->
+        ${data.chartData.percentiles && data.chartData.percentiles.length > 0 ? `
+        <div class="chart-container full-width">
+          <canvas id="percentilesChart"></canvas>
+        </div>
+        ` : ''}
+        
         <!-- Performance Correlation Analysis -->
         <div class="correlation-section full-width">
           <h3 class="correlation-title">Performance Correlation Analysis</h3>
@@ -308,65 +333,116 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
     </div>
   `;
 
-  const generateComparisonTab = (comparisonData: ComparisonData) => `
+  const generateComparisonTab = (comparisonResult: ComparisonResult) => `
     <div id="comparison" class="tab-content">
       <div class="comparison-header">
         <h3>Performance Comparison</h3>
+        <div class="comparison-status ${comparisonResult.overallStatus}">
+          <span class="status-badge">${comparisonResult.overallStatus.toUpperCase()}</span>
+        </div>
         <div class="comparison-files">
           <div class="file-info current">
             <h4>Current Test</h4>
-            <p>${comparisonData.fileName}</p>
-            <small>${comparisonData.current.totalRequests.toLocaleString()} requests, ${comparisonData.current.avgResponseTime.toFixed(0)}ms avg</small>
+            <p>${comparisonResult.currentTest.fileName}</p>
+            <small>${comparisonResult.currentTest.summary.totalRequests.toLocaleString()} requests, ${comparisonResult.currentTest.summary.avgResponseTime.toFixed(0)}ms avg</small>
           </div>
           <div class="file-info previous">
             <h4>Previous Test</h4>
-            <p>${comparisonData.previousFileName}</p>
-            <small>${comparisonData.previous.totalRequests.toLocaleString()} requests, ${comparisonData.previous.avgResponseTime.toFixed(0)}ms avg</small>
+            <p>${comparisonResult.previousTest.fileName}</p>
+            <small>${comparisonResult.previousTest.summary.totalRequests.toLocaleString()} requests, ${comparisonResult.previousTest.summary.avgResponseTime.toFixed(0)}ms avg</small>
           </div>
         </div>
       </div>
       
-      <div class="comparison-metrics">
-        <div class="metric-comparison">
-          <h4>Overall Performance Comparison</h4>
-          <div class="comparison-grid">
-            <div class="comparison-item">
-              <span class="metric-name">Average Response Time</span>
-              <div class="comparison-values">
-                <span class="current">${comparisonData.current.avgResponseTime.toFixed(0)}ms</span>
-                <span class="vs">vs</span>
-                <span class="previous">${comparisonData.previous.avgResponseTime.toFixed(0)}ms</span>
-                <span class="change ${comparisonData.current.avgResponseTime < comparisonData.previous.avgResponseTime ? 'improvement' : 'regression'}">
-                  ${((comparisonData.current.avgResponseTime - comparisonData.previous.avgResponseTime) / comparisonData.previous.avgResponseTime * 100).toFixed(1)}%
-                </span>
+      <div class="insights-section">
+        <h4>Analysis Summary</h4>
+        <p>${comparisonResult.insights.summary}</p>
+        
+        <div class="insights-grid">
+          <div class="insights-card improvements">
+            <h5>Top Improvements (${comparisonResult.insights.topImprovements.length})</h5>
+            ${comparisonResult.insights.topImprovements.map(metric => `
+              <div class="insight-item">
+                <span class="metric-name">${metric.label}</span>
+                <span class="change improvement">${metric.changes.avgResponseTime.toFixed(1)}% faster</span>
               </div>
-            </div>
-            
-            <div class="comparison-item">
-              <span class="metric-name">Throughput</span>
-              <div class="comparison-values">
-                <span class="current">${comparisonData.current.overallThroughput.toFixed(2)} req/s</span>
-                <span class="vs">vs</span>
-                <span class="previous">${comparisonData.previous.overallThroughput.toFixed(2)} req/s</span>
-                <span class="change ${comparisonData.current.overallThroughput > comparisonData.previous.overallThroughput ? 'improvement' : 'regression'}">
-                  ${((comparisonData.current.overallThroughput - comparisonData.previous.overallThroughput) / comparisonData.previous.overallThroughput * 100).toFixed(1)}%
-                </span>
+            `).join('')}
+          </div>
+          
+          <div class="insights-card regressions">
+            <h5>Top Regressions (${comparisonResult.insights.topRegressions.length})</h5>
+            ${comparisonResult.insights.topRegressions.map(metric => `
+              <div class="insight-item">
+                <span class="metric-name">${metric.label}</span>
+                <span class="change regression">${metric.changes.avgResponseTime.toFixed(1)}% slower</span>
               </div>
-            </div>
-            
-            <div class="comparison-item">
-              <span class="metric-name">Error Rate</span>
-              <div class="comparison-values">
-                <span class="current">${comparisonData.current.errorRate.toFixed(2)}%</span>
-                <span class="vs">vs</span>
-                <span class="previous">${comparisonData.previous.errorRate.toFixed(2)}%</span>
-                <span class="change ${comparisonData.current.errorRate < comparisonData.previous.errorRate ? 'improvement' : 'regression'}">
-                  ${((comparisonData.current.errorRate - comparisonData.previous.errorRate) / Math.max(comparisonData.previous.errorRate, 0.01) * 100).toFixed(1)}%
-                </span>
-              </div>
-            </div>
+            `).join('')}
           </div>
         </div>
+      </div>
+      
+      <div class="comparison-table">
+        <h4>Detailed Transaction Comparison</h4>
+        <table>
+          <thead>
+            <tr>
+              <th>Transaction</th>
+              <th>Status</th>
+              <th>Avg Response Time</th>
+              <th>90th Percentile</th>
+              <th>Throughput</th>
+              <th>Error Rate</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${comparisonResult.metrics.map(metric => `
+              <tr class="comparison-row ${metric.status}">
+                <td>${metric.label}</td>
+                <td><span class="status-indicator ${metric.status}">${metric.status}</span></td>
+                <td>
+                  <div class="metric-comparison">
+                    <span class="current">${metric.current.avgResponseTime.toFixed(0)}ms</span>
+                    <span class="vs">vs</span>
+                    <span class="previous">${metric.previous.avgResponseTime.toFixed(0)}ms</span>
+                    <span class="change ${metric.changes.avgResponseTime < 0 ? 'improvement' : 'regression'}">
+                      ${metric.changes.avgResponseTime.toFixed(1)}%
+                    </span>
+                  </div>
+                </td>
+                <td>
+                  <div class="metric-comparison">
+                    <span class="current">${metric.current.p90ResponseTime.toFixed(0)}ms</span>
+                    <span class="vs">vs</span>
+                    <span class="previous">${metric.previous.p90ResponseTime.toFixed(0)}ms</span>
+                    <span class="change ${metric.changes.p90ResponseTime < 0 ? 'improvement' : 'regression'}">
+                      ${metric.changes.p90ResponseTime.toFixed(1)}%
+                    </span>
+                  </div>
+                </td>
+                <td>
+                  <div class="metric-comparison">
+                    <span class="current">${metric.current.throughput.toFixed(2)}/s</span>
+                    <span class="vs">vs</span>
+                    <span class="previous">${metric.previous.throughput.toFixed(2)}/s</span>
+                    <span class="change ${metric.changes.throughput > 0 ? 'improvement' : 'regression'}">
+                      ${metric.changes.throughput.toFixed(1)}%
+                    </span>
+                  </div>
+                </td>
+                <td>
+                  <div class="metric-comparison">
+                    <span class="current">${metric.current.errorRate.toFixed(2)}%</span>
+                    <span class="vs">vs</span>
+                    <span class="previous">${metric.previous.errorRate.toFixed(2)}%</span>
+                    <span class="change ${metric.changes.errorRate < 0 ? 'improvement' : 'regression'}">
+                      ${metric.changes.errorRate.toFixed(1)}%
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
       </div>
     </div>
   `;
@@ -377,6 +453,45 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
     <script>
       // Chart data
       const chartData = ${JSON.stringify(data.chartData)};
+      
+      // Helper function to create scatter chart
+      function createScatterChart(ctx, data, title, xLabel, yLabel) {
+        if (!data || data.length === 0) return null;
+        
+        const groupedData = data.reduce((acc, point) => {
+          if (!acc[point.label]) acc[point.label] = [];
+          acc[point.label].push({ x: point.x, y: point.y });
+          return acc;
+        }, {});
+        
+        return new Chart(ctx, {
+          type: 'scatter',
+          data: {
+            datasets: Object.entries(groupedData).map(([label, points], index) => ({
+              label,
+              data: points,
+              backgroundColor: \`hsla(\${(index * 137.5) % 360}, 70%, 50%, 0.6)\`,
+              borderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 40%)\`,
+              borderWidth: 1,
+              pointRadius: 4,
+              pointHoverRadius: 6,
+              showLine: false,
+            }))
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: { title: { display: true, text: xLabel } },
+              y: { title: { display: true, text: yLabel } }
+            },
+            plugins: {
+              title: { display: true, text: title },
+              legend: { display: true, position: 'top' }
+            }
+          }
+        });
+      }
       
       // Response Times Chart
       const responseTimesCtx = document.getElementById('responseTimesChart').getContext('2d');
@@ -459,7 +574,7 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
             label: 'Errors',
             data: chartData.errorsOverTime,
             borderColor: 'rgb(239, 68, 68)',
-            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            backgroundColor: 'rgba(239, 68, 68, 0.8)',
             borderWidth: 1,
           }]
         },
@@ -485,18 +600,16 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
       new Chart(hitsCtx, {
         type: 'line',
         data: {
-          datasets: [
-            {
-              label: 'Hits/sec',
-              data: chartData.hitsOverTime,
-              borderColor: 'rgb(34, 197, 94)',
-              backgroundColor: 'rgba(34, 197, 94, 0.1)',
-              fill: true,
-              tension: 0.1,
-              pointRadius: 2,
-              pointHoverRadius: 4,
-            }
-          ]
+          datasets: [{
+            label: 'Hits/sec',
+            data: chartData.hitsOverTime,
+            borderColor: 'rgb(34, 197, 94)',
+            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+            fill: true,
+            tension: 0.1,
+            pointRadius: 2,
+            pointHoverRadius: 4,
+          }]
         },
         options: {
           responsive: true,
@@ -515,157 +628,98 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
         }
       });
       
-      // Throughput vs Response Time Chart
-      const throughputVsResponseTimeCtx = document.getElementById('throughputVsResponseTimeChart').getContext('2d');
-      const groupedThroughputVsResponseTime = chartData.throughputVsResponseTime.reduce((acc, point) => {
-        if (!acc[point.label]) acc[point.label] = [];
-        acc[point.label].push({ x: point.x, y: point.y });
-        return acc;
-      }, {});
-      
-      new Chart(throughputVsResponseTimeCtx, {
-        type: 'scatter',
+      // Percentiles Chart (if data exists)
+      ${data.chartData.percentiles && data.chartData.percentiles.length > 0 ? `
+      const percentilesCtx = document.getElementById('percentilesChart').getContext('2d');
+      new Chart(percentilesCtx, {
+        type: 'bar',
         data: {
-          datasets: Object.entries(groupedThroughputVsResponseTime).map(([label, points], index) => ({
-            label,
-            data: points,
-            backgroundColor: \`hsla(\${(index * 137.5) % 360}, 70%, 50%, 0.6)\`,
-            borderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 40%)\`,
-            borderWidth: 1,
-            pointRadius: 4,
-            pointHoverRadius: 6,
-            pointBackgroundColor: \`hsl(\${(index * 137.5) % 360}, 70%, 50%)\`,
-            pointBorderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 30%)\`,
-            pointBorderWidth: 1,
-            showLine: false,
-          }))
+          labels: chartData.percentiles.map(d => d.label),
+          datasets: [
+            {
+              label: 'p50',
+              data: chartData.percentiles.map(d => d.p50),
+              backgroundColor: 'rgba(34, 197, 94, 0.8)',
+              borderColor: 'rgb(34, 197, 94)',
+              borderWidth: 1,
+            },
+            {
+              label: 'p75',
+              data: chartData.percentiles.map(d => d.p75),
+              backgroundColor: 'rgba(59, 130, 246, 0.8)',
+              borderColor: 'rgb(59, 130, 246)',
+              borderWidth: 1,
+            },
+            {
+              label: 'p90',
+              data: chartData.percentiles.map(d => d.p90),
+              backgroundColor: 'rgba(245, 158, 11, 0.8)',
+              borderColor: 'rgb(245, 158, 11)',
+              borderWidth: 1,
+            },
+            {
+              label: 'p95',
+              data: chartData.percentiles.map(d => d.p95),
+              backgroundColor: 'rgba(249, 115, 22, 0.8)',
+              borderColor: 'rgb(249, 115, 22)',
+              borderWidth: 1,
+            },
+            {
+              label: 'p99',
+              data: chartData.percentiles.map(d => d.p99),
+              backgroundColor: 'rgba(239, 68, 68, 0.8)',
+              borderColor: 'rgb(239, 68, 68)',
+              borderWidth: 1,
+            }
+          ]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
           scales: {
-            x: { title: { display: true, text: 'Throughput (req/s)' } },
+            x: { title: { display: true, text: 'Transaction' } },
             y: { title: { display: true, text: 'Response Time (ms)' } }
           },
           plugins: {
-            title: { display: true, text: 'Throughput vs Response Time' }
+            title: { display: true, text: 'Response Time Percentiles' },
+            legend: { display: true, position: 'top' }
           }
         }
       });
+      ` : ''}
       
-      // Users vs Response Time Chart
-      const usersVsResponseTimeCtx = document.getElementById('usersVsResponseTimeChart').getContext('2d');
-      const groupedUsersVsResponseTime = chartData.usersVsResponseTime.reduce((acc, point) => {
-        if (!acc[point.label]) acc[point.label] = [];
-        acc[point.label].push({ x: point.x, y: point.y });
-        return acc;
-      }, {});
+      // Correlation Charts
+      createScatterChart(
+        document.getElementById('throughputVsResponseTimeChart').getContext('2d'),
+        chartData.throughputVsResponseTime,
+        'Throughput vs Response Time',
+        'Throughput (req/s)',
+        'Response Time (ms)'
+      );
       
-      new Chart(usersVsResponseTimeCtx, {
-        type: 'scatter',
-        data: {
-          datasets: Object.entries(groupedUsersVsResponseTime).map(([label, points], index) => ({
-            label,
-            data: points,
-            backgroundColor: \`hsla(\${(index * 137.5) % 360}, 70%, 50%, 0.6)\`,
-            borderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 40%)\`,
-            borderWidth: 1,
-            pointRadius: 4,
-            pointHoverRadius: 6,
-            pointBackgroundColor: \`hsl(\${(index * 137.5) % 360}, 70%, 50%)\`,
-            pointBorderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 30%)\`,
-            pointBorderWidth: 1,
-            showLine: false,
-          }))
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            x: { title: { display: true, text: 'Active Users' } },
-            y: { title: { display: true, text: 'Response Time (ms)' } }
-          },
-          plugins: {
-            title: { display: true, text: 'Users vs Response Time' }
-          }
-        }
-      });
+      createScatterChart(
+        document.getElementById('usersVsResponseTimeChart').getContext('2d'),
+        chartData.usersVsResponseTime,
+        'Users vs Response Time',
+        'Active Users',
+        'Response Time (ms)'
+      );
       
-      // Errors vs Users Chart
-      const errorsVsUsersCtx = document.getElementById('errorsVsUsersChart').getContext('2d');
-      const groupedErrorsVsUsers = chartData.errorsVsUsers.reduce((acc, point) => {
-        if (!acc[point.label]) acc[point.label] = [];
-        acc[point.label].push({ x: point.x, y: point.y });
-        return acc;
-      }, {});
+      createScatterChart(
+        document.getElementById('errorsVsUsersChart').getContext('2d'),
+        chartData.errorsVsUsers,
+        'Errors vs Users',
+        'Active Users',
+        'Response Time (ms)'
+      );
       
-      new Chart(errorsVsUsersCtx, {
-        type: 'scatter',
-        data: {
-          datasets: Object.entries(groupedErrorsVsUsers).map(([label, points], index) => ({
-            label,
-            data: points,
-            backgroundColor: \`hsla(\${(index * 137.5) % 360}, 70%, 50%, 0.6)\`,
-            borderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 40%)\`,
-            borderWidth: 1,
-            pointRadius: 4,
-            pointHoverRadius: 6,
-            pointBackgroundColor: \`hsl(\${(index * 137.5) % 360}, 70%, 50%)\`,
-            pointBorderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 30%)\`,
-            pointBorderWidth: 1,
-            showLine: false,
-          }))
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            x: { title: { display: true, text: 'Active Users' } },
-            y: { title: { display: true, text: 'Response Time (ms)' } }
-          },
-          plugins: {
-            title: { display: true, text: 'Errors vs Users' }
-          }
-        }
-      });
-      
-      // Errors vs Response Time Chart
-      const errorsVsResponseTimeCtx = document.getElementById('errorsVsResponseTimeChart').getContext('2d');
-      const groupedErrorsVsResponseTime = chartData.errorsVsResponseTime.reduce((acc, point) => {
-        if (!acc[point.label]) acc[point.label] = [];
-        acc[point.label].push({ x: point.x, y: point.y });
-        return acc;
-      }, {});
-      
-      new Chart(errorsVsResponseTimeCtx, {
-        type: 'scatter',
-        data: {
-          datasets: Object.entries(groupedErrorsVsResponseTime).map(([label, points], index) => ({
-            label,
-            data: points,
-            backgroundColor: \`hsla(\${(index * 137.5) % 360}, 70%, 50%, 0.6)\`,
-            borderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 40%)\`,
-            borderWidth: 1,
-            pointRadius: 4,
-            pointHoverRadius: 6,
-            pointBackgroundColor: \`hsl(\${(index * 137.5) % 360}, 70%, 50%)\`,
-            pointBorderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 30%)\`,
-            pointBorderWidth: 1,
-            showLine: false,
-          }))
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            x: { title: { display: true, text: 'Response Time (ms)' } },
-            y: { title: { display: true, text: 'Active Users' } }
-          },
-          plugins: {
-            title: { display: true, text: 'Errors vs Response Time' }
-          }
-        }
-      });
+      createScatterChart(
+        document.getElementById('errorsVsResponseTimeChart').getContext('2d'),
+        chartData.errorsVsResponseTime,
+        'Errors vs Response Time',
+        'Response Time (ms)',
+        'Active Users'
+      );
     </script>
   `;
 
@@ -959,53 +1013,34 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
         }
         
         .section-header {
-          grid-column: 1 / -1;
-          margin-bottom: 20px;
+            grid-column: 1 / -1;
+            margin-bottom: 20px;
         }
         
         .section-description {
-          color: #6b7280;
-          font-size: 0.9rem;
-          margin-top: 5px;
+            color: #6b7280;
+            font-size: 0.9rem;
+            margin-top: 5px;
         }
         
         .correlation-grid {
-          display: grid;
-          grid-template-columns: ${getCorrelationGridColumns()};
-          gap: ${getCorrelationGap()};
+            display: grid;
+            grid-template-columns: ${getCorrelationGridColumns()};
+            gap: ${getCorrelationGap()};
         }
         
         .correlation-chart-container {
-          background: white;
-          padding: 20px;
-          border-radius: 10px;
-          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-          height: ${getCorrelationChartHeight()};
-        }
-        
-        .correlation-insights {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
-        }
-        
-        .insights-content {
-            text-align: center;
-            color: #6b7280;
+            background: white;
             padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            height: ${getCorrelationChartHeight()};
         }
         
-        .insights-content h4 {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 10px;
-            color: #374151;
-        }
-        
-        .insights-content p {
+        .correlation-description {
+            color: #7c3aed;
             font-size: 0.9rem;
-            line-height: 1.5;
+            margin-bottom: 20px;
         }
         
         .no-errors {
@@ -1042,6 +1077,131 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
             white-space: nowrap;
         }
         
+        .error-status-summary {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        
+        .error-status-summary h4 {
+            margin-bottom: 15px;
+            color: #495057;
+            font-size: 1.1rem;
+        }
+        
+        .status-code-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .status-code-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .status-code-card.status-4xx {
+            border-left-color: #f59e0b;
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+        }
+        
+        .status-code-card.status-5xx {
+            border-left-color: #ef4444;
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+        }
+        
+        .status-code-card.status-3xx {
+            border-left-color: #3b82f6;
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+        }
+        
+        .status-code-card.status-unknown {
+            border-left-color: #6b7280;
+            background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+        }
+        
+        .status-code {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .status-code-card .error-count {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .status-description {
+            font-size: 0.85rem;
+            color: #6b7280;
+        }
+        
+        .errors-by-status {
+            margin-top: 30px;
+        }
+        
+        .status-group {
+            margin-bottom: 30px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .status-group-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 20px;
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        
+        .status-group-header.status-4xx {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #92400e;
+        }
+        
+        .status-group-header.status-5xx {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            color: #991b1b;
+        }
+        
+        .status-group-header.status-3xx {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            color: #1e40af;
+        }
+        
+        .status-group-header.status-unknown {
+            background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+            color: #374151;
+        }
+        
+        .status-code-badge {
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+        
+        .error-count-badge {
+            background: rgba(255,255,255,0.8);
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        
+        .status-group .error-table {
+            margin: 0;
+            border-radius: 0;
+        }
+        
+        /* Comparison Styles */
         .comparison-header {
             margin-bottom: 30px;
         }
@@ -1050,6 +1210,38 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
             color: #2563eb;
             margin-bottom: 20px;
             font-size: 1.5rem;
+        }
+        
+        .comparison-status {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .comparison-status.improvement .status-badge {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .comparison-status.regression .status-badge {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .comparison-status.mixed .status-badge {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .comparison-status.neutral .status-badge {
+            background: #f3f4f6;
+            color: #374151;
         }
         
         .comparison-files {
@@ -1084,35 +1276,123 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
             margin-bottom: 5px;
         }
         
-        .comparison-metrics {
+        .insights-section {
+            margin-bottom: 30px;
+            padding: 20px;
             background: #f8f9fa;
-            padding: 25px;
             border-radius: 10px;
         }
         
-        .comparison-grid {
-            display: grid;
-            gap: 20px;
+        .insights-section h4 {
+            margin-bottom: 15px;
+            color: #495057;
         }
         
-        .comparison-item {
+        .insights-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .insights-card {
             background: white;
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
         
+        .insights-card.improvements {
+            border-left: 4px solid #10b981;
+        }
+        
+        .insights-card.regressions {
+            border-left: 4px solid #ef4444;
+        }
+        
+        .insights-card h5 {
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+        }
+        
+        .insight-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .insight-item:last-child {
+            border-bottom: none;
+        }
+        
         .metric-name {
-            display: block;
+            font-weight: 500;
+        }
+        
+        .change {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
             font-weight: 600;
-            margin-bottom: 10px;
+        }
+        
+        .change.improvement {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .change.regression {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .comparison-table {
+            margin-top: 30px;
+        }
+        
+        .comparison-table h4 {
+            margin-bottom: 15px;
             color: #495057;
         }
         
-        .comparison-values {
+        .comparison-row.improvement {
+            background: #f0fdf4;
+        }
+        
+        .comparison-row.regression {
+            background: #fef2f2;
+        }
+        
+        .status-indicator {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+        
+        .status-indicator.improvement {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .status-indicator.regression {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .status-indicator.neutral {
+            background: #f3f4f6;
+            color: #374151;
+        }
+        
+        .metric-comparison {
             display: flex;
             align-items: center;
-            gap: 15px;
+            gap: 8px;
+            font-size: 0.9rem;
         }
         
         .current {
@@ -1127,154 +1407,7 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
         
         .vs {
             color: #666;
-            font-size: 0.9rem;
-        }
-        
-        .change {
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-weight: 600;
-            font-size: 0.9rem;
-        }
-        
-        .change.improvement {
-            background: #d1fae5;
-            color: #065f46;
-        }
-        
-        .change.regression {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-        
-        .error-status-summary {
-          margin-bottom: 30px;
-          padding: 20px;
-          background: #f8f9fa;
-          border-radius: 10px;
-        }
-        
-        .error-status-summary h4 {
-          margin-bottom: 15px;
-          color: #495057;
-          font-size: 1.1rem;
-        }
-        
-        .status-code-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 15px;
-        }
-        
-        .correlation-description {
-          color: #7c3aed;
-          font-size: 0.9rem;
-          margin-bottom: 20px;
-        }
-        
-        .status-code-card {
-          background: white;
-          padding: 15px;
-          border-radius: 8px;
-          text-align: center;
-          border-left: 4px solid;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .status-code-card.status-4xx {
-          border-left-color: #f59e0b;
-          background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-        }
-        
-        .status-code-card.status-5xx {
-          border-left-color: #ef4444;
-          background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-        }
-        
-        .status-code-card.status-3xx {
-          border-left-color: #3b82f6;
-          background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-        }
-        
-        .status-code-card.status-unknown {
-          border-left-color: #6b7280;
-          background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
-        }
-        
-        .status-code {
-          font-size: 1.5rem;
-          font-weight: 700;
-          margin-bottom: 5px;
-        }
-        
-        .status-code-card .error-count {
-          font-size: 1.1rem;
-          font-weight: 600;
-          margin-bottom: 5px;
-        }
-        
-        .status-description {
-          font-size: 0.85rem;
-          color: #6b7280;
-        }
-        
-        .errors-by-status {
-          margin-top: 30px;
-        }
-        
-        .status-group {
-          margin-bottom: 30px;
-          border: 1px solid #e5e7eb;
-          border-radius: 8px;
-          overflow: hidden;
-        }
-        
-        .status-group-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 15px 20px;
-          margin: 0;
-          font-size: 1.1rem;
-          font-weight: 600;
-        }
-        
-        .status-group-header.status-4xx {
-          background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-          color: #92400e;
-        }
-        
-        .status-group-header.status-5xx {
-          background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-          color: #991b1b;
-        }
-        
-        .status-group-header.status-3xx {
-          background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-          color: #1e40af;
-        }
-        
-        .status-group-header.status-unknown {
-          background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
-          color: #374151;
-        }
-        
-        .status-code-badge {
-          font-size: 1.2rem;
-          font-weight: 700;
-        }
-        
-        .error-count-badge {
-          background: rgba(255,255,255,0.8);
-          padding: 4px 8px;
-          border-radius: 12px;
-          font-size: 0.85rem;
-          font-weight: 600;
-        }
-        
-        .status-group .error-table {
-          margin: 0;
-          border-radius: 0;
+            font-size: 0.8rem;
         }
         
         @media (max-width: 768px) {
@@ -1283,7 +1416,8 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
             }
             
             .summary-grid,
-            .comparison-files {
+            .comparison-files,
+            .insights-grid {
                 grid-template-columns: 1fr;
             }
             
@@ -1313,25 +1447,21 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
                 border-bottom: none;
             }
             
-            .overall-comparison-grid {
-              grid-template-columns: 1fr;
+            .status-code-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .status-group-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
             }
             
             .metric-comparison {
-              flex-direction: column;
-              align-items: flex-start;
-              gap: 5px;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 4px;
             }
-          
-          .status-code-grid {
-            grid-template-columns: 1fr;
-          }
-          
-          .status-group-header {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 10px;
-          }
         }
     </style>
 </head>
@@ -1352,7 +1482,7 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
         ${generateDashboardTab()}
         ${generateGraphsTab()}
         ${generateErrorsTab()}
-        ${comparisonResult ? generateComparisonTab(comparisonResult) : ''}
+        ${comparison ? generateComparisonTab(comparison) : ''}
     </div>
     
     <script>

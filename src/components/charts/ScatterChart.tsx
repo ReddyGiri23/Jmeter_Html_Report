@@ -20,7 +20,7 @@ const ScatterChart: React.FC<ScatterChartProps> = ({
   const chartRef = useRef<Chart | null>(null);
 
   useEffect(() => {
-    if (!canvasRef.current) return;
+    if (!canvasRef.current || !data || data.length === 0) return;
 
     if (chartRef.current) {
       chartRef.current.destroy();
@@ -102,6 +102,19 @@ const ScatterChart: React.FC<ScatterChartProps> = ({
       }
     };
   }, [data, title, xAxisLabel, yAxisLabel]);
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="flex items-center justify-center h-64 text-gray-500">
+          <div className="text-center">
+            <div className="text-4xl mb-2">📊</div>
+            <p>No data available for {title}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
