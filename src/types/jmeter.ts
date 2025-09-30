@@ -76,6 +76,14 @@ export interface ChartData {
   usersVsResponseTime: Array<{ x: number; y: number; label: string }>;
   errorsVsUsers: Array<{ x: number; y: number; label: string }>;
   errorsVsResponseTime: Array<{ x: number; y: number; label: string }>;
+  // Load-based analysis data
+  responseTimeByUserLoad: Array<{ activeUsers: number; medianResponseTime: number; label?: string; }>;
+  throughputByUserLoad: Array<{ activeUsers: number; throughput: number; }>;
+  errorsByUserLoad: Array<{ activeUsers: number; errorRate: number; }>;
+  timeBasedPercentiles: Array<{ timestamp: number; p90: number; p95: number; p99: number; }>;
+  // Enhanced correlation data with density
+  throughputVsResponseTimeWithDensity: Array<{ x: number; y: number; label: string; density: number; }>;
+  usersVsResponseTimeWithDensity: Array<{ x: number; y: number; label: string; density: number; }>;
 }
 
 export interface JMeterData {
