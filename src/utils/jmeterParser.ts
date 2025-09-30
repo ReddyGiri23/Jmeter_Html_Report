@@ -410,6 +410,20 @@ const generateChartData = (samples: JMeterSample[], transactions: TransactionMet
     .map(([time, count]) => ({ x: time, y: count }))
     .sort((a, b) => a.x - b.x);
 
+  // Hits Over Time - aggregate all requests by time intervals
+  const hitsMap = new Map<number, number>();
+  
+  samples.forEach(sample => {
+    const timeSlot = Math.floor(sample.timeStamp / timeInterval) * timeInterval;
+    hitsMap.set(timeSlot, (hitsMap.get(timeSlot) || 0) + 1);
+  });
+  
+  const hitsOverTime = Array.from(hitsMap.entries())
+    .map(([time, count]) => ({ 
+      x: time, 
+      y: count / (timeInterval / 1000) // Convert to hits per second
+    }))
+    .sort((a, b) => a.x - b.x);
   // Enhanced percentiles calculation for each transaction
   const percentiles = transactions.map(transaction => {
     const labelSamples = samples.filter(s => s.label === transaction.label);
@@ -426,180 +440,7 @@ const generateChartData = (samples: JMeterSample[], transactions: TransactionMet
     };
   });
 
-  // Load-based analysis data generation
-  log('Generating load-based analysis data...');
-  
-  // Response Time by User Load
-  const userLoadMap = new Map<number, { totalTime: number; count: number; transactions: Map<string, { totalTime: number; count: number }> }>();
-  
-  samples.forEach(sample => {
-    const userCount = sample.allThreads || 1;
-    if (!userLoadMap.has(userCount)) {
-      userLoadMap.set(userCount, { totalTime: 0, count: 0, transactions: new Map() });
-    }
-    
-    const userLoad = userLoadMap.get(userCount)!;
-    userLoad.totalTime += sample.elapsed;
-    userLoad.count += 1;
-    
-    // Track per transaction
-    if (!userLoad.transactions.has(sample.label)) {
-      userLoad.transactions.set(sample.label, { totalTime: 0, count: 0 });
-    }
-    const transactionData = userLoad.transactions.get(sample.label)!;
-    transactionData.totalTime += sample.elapsed;
-    transactionData.count += 1;
-  });
-  
-  const responseTimeByUserLoad: Array<{ activeUsers: number; medianResponseTime: number; label?: string; }> = [];
-  
-  // Add aggregate median response time
-  userLoadMap.forEach((data, userCount) => {
-    if (data.count >= 5) { // Only include user loads with sufficient data
-      const medianResponseTime = data.totalTime / data.count;
-      responseTimeByUserLoad.push({
-        activeUsers: userCount,
-        medianResponseTime,
-      });
-      
-      // Add individual transaction data
-      data.transactions.forEach((transactionData, label) => {
-        if (transactionData.count >= 3) { // Minimum samples per transaction
-          responseTimeByUserLoad.push({
-            activeUsers: userCount,
-            medianResponseTime: transactionData.totalTime / transactionData.count,
-            label,
-          });
-        }
-      });
-    }
-  });
-  
-  responseTimeByUserLoad.sort((a, b) => a.activeUsers - b.activeUsers);
-  
-  // Throughput by User Load with moving average
-  const throughputByUserLoad: Array<{ activeUsers: number; throughput: number; }> = [];
-  const sortedUserCounts = Array.from(userLoadMap.keys()).sort((a, b) => a - b);
-  
-  sortedUserCounts.forEach((userCount, index) => {
-    const data = userLoadMap.get(userCount)!;
-    if (data.count >= 5) {
-      // Calculate throughput (assuming 1-second intervals for simplicity)
-      let throughput = data.count;
-      
-      // Apply moving average (3-point window)
-      if (index >= 1 && index < sortedUserCounts.length - 1) {
-        const prevData = userLoadMap.get(sortedUserCounts[index - 1])!;
-        const nextData = userLoadMap.get(sortedUserCounts[index + 1])!;
-        throughput = (prevData.count + data.count + nextData.count) / 3;
-      }
-      
-      throughputByUserLoad.push({
-        activeUsers: userCount,
-        throughput,
-      });
-    }
-  });
-  
-  // Errors by User Load
-  const errorsByUserLoadMap = new Map<number, { totalRequests: number; totalErrors: number }>();
-  
-  samples.forEach(sample => {
-    const userCount = sample.allThreads || 1;
-    if (!errorsByUserLoadMap.has(userCount)) {
-      errorsByUserLoadMap.set(userCount, { totalRequests: 0, totalErrors: 0 });
-    }
-    
-    const errorData = errorsByUserLoadMap.get(userCount)!;
-    errorData.totalRequests += 1;
-    if (!sample.success) {
-      errorData.totalErrors += 1;
-    }
-  });
-  
-  const errorsByUserLoad: Array<{ activeUsers: number; errorRate: number; }> = [];
-  errorsByUserLoadMap.forEach((data, userCount) => {
-    if (data.totalRequests >= 5) {
-      const errorRate = (data.totalErrors / data.totalRequests) * 100;
-      errorsByUserLoad.push({
-        activeUsers: userCount,
-        errorRate,
-      });
-    }
-  });
-  
-  errorsByUserLoad.sort((a, b) => a.activeUsers - b.activeUsers);
-  
-  // Time-based percentiles
-  const timeBasedPercentiles: Array<{ timestamp: number; p90: number; p95: number; p99: number; }> = [];
-  const timeIntervalForPercentiles = 120000; // 2-minute intervals
-  const percentileTimeMap = new Map<number, number[]>();
-  
-  samples.forEach(sample => {
-    const timeSlot = Math.floor(sample.timeStamp / timeIntervalForPercentiles) * timeIntervalForPercentiles;
-    if (!percentileTimeMap.has(timeSlot)) {
-      percentileTimeMap.set(timeSlot, []);
-    }
-    percentileTimeMap.get(timeSlot)!.push(sample.elapsed);
-  });
-  
-  percentileTimeMap.forEach((responseTimes, timeSlot) => {
-    if (responseTimes.length >= 10) { // Minimum samples for reliable percentiles
-      const stats = calculateStatistics(responseTimes);
-      timeBasedPercentiles.push({
-        timestamp: timeSlot,
-        p90: stats.p90,
-        p95: stats.p95,
-        p99: stats.p99,
-      });
-    }
-  });
-  
-  timeBasedPercentiles.sort((a, b) => a.timestamp - b.timestamp);
-  
-  // Calculate density for correlation charts
-  log('Calculating density for correlation charts...');
-  
-  const calculateDensity = (data: Array<{ x: number; y: number; label: string }>) => {
-    // Create bins for density calculation
-    const xValues = data.map(d => d.x);
-    const yValues = data.map(d => d.y);
-    const xMin = Math.min(...xValues);
-    const xMax = Math.max(...xValues);
-    const yMin = Math.min(...yValues);
-    const yMax = Math.max(...yValues);
-    
-    const xBins = 20;
-    const yBins = 20;
-    const xBinSize = (xMax - xMin) / xBins;
-    const yBinSize = (yMax - yMin) / yBins;
-    
-    // Count points in each bin
-    const densityMap = new Map<string, number>();
-    
-    data.forEach(point => {
-      const xBin = Math.floor((point.x - xMin) / xBinSize);
-      const yBin = Math.floor((point.y - yMin) / yBinSize);
-      const key = `${xBin},${yBin}`;
-      densityMap.set(key, (densityMap.get(key) || 0) + 1);
-    });
-    
-    const maxDensity = Math.max(...Array.from(densityMap.values()));
-    
-    // Assign density to each point
-    return data.map(point => {
-      const xBin = Math.floor((point.x - xMin) / xBinSize);
-      const yBin = Math.floor((point.y - yMin) / yBinSize);
-      const key = `${xBin},${yBin}`;
-      const density = (densityMap.get(key) || 1) / maxDensity;
-      
-      return {
-        ...point,
-        density,
-      };
-    });
-  };
-  // Enhanced Throughput vs Response Time with time-based data points
+  // Throughput vs Response Time
   const throughputVsResponseTime: Array<{ x: number; y: number; label: string }> = [];
   
   // Group samples by transaction and time intervals for trend analysis
@@ -665,40 +506,28 @@ const generateChartData = (samples: JMeterSample[], transactions: TransactionMet
       y: sample.allThreads > 0 ? sample.allThreads : 1, // Default to 1 if no thread info
       label: sample.label
     }));
-
-  // Calculate density for dense charts
-  const throughputVsResponseTimeWithDensity = calculateDensity(throughputVsResponseTime);
-  const usersVsResponseTimeWithDensity = calculateDensity(usersVsResponseTime);
   const chartData: ChartData = {
     responseTimesOverTime,
     tpsOverTime,
     errorsOverTime,
+    hitsOverTime,
     percentiles,
     throughputVsResponseTime,
     usersVsResponseTime,
     errorsVsUsers,
-    errorsVsResponseTime,
-    responseTimeByUserLoad,
-    throughputByUserLoad,
-    errorsByUserLoad,
-    timeBasedPercentiles,
-    throughputVsResponseTimeWithDensity,
-    usersVsResponseTimeWithDensity
+    errorsVsResponseTime
   };
 
   log('Generated chart data with data points:', {
     responseTimesOverTime: responseTimesOverTime.length,
     tpsOverTime: tpsOverTime.length,
     errorsOverTime: errorsOverTime.length,
+    hitsOverTime: hitsOverTime.length,
     percentiles: percentiles.length,
     throughputVsResponseTime: throughputVsResponseTime.length,
     usersVsResponseTime: usersVsResponseTime.length,
     errorsVsUsers: errorsVsUsers.length,
-    errorsVsResponseTime: errorsVsResponseTime.length,
-    responseTimeByUserLoad: responseTimeByUserLoad.length,
-    throughputByUserLoad: throughputByUserLoad.length,
-    errorsByUserLoad: errorsByUserLoad.length,
-    timeBasedPercentiles: timeBasedPercentiles.length
+    errorsVsResponseTime: errorsVsResponseTime.length
   });
 
   return chartData;

@@ -176,28 +176,28 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
   const generateGraphsTab = () => `
     <div id="graphs" class="tab-content">
       <div class="charts-grid">
-        <!-- Load-Based Analysis Charts -->
+        <!-- Time-Series Charts -->
         <div class="section-header">
-          <h3 class="section-title">Load-Based Performance Analysis</h3>
-          <p class="section-description">These charts show how your system performs as the number of active users increases, helping identify capacity limits and scalability bottlenecks.</p>
+          <h3 class="section-title">Performance Over Time</h3>
+          <p class="section-description">These charts show how your system performs over the duration of the test, helping identify trends, spikes, and performance patterns over time.</p>
         </div>
         <div class="chart-container">
-          <canvas id="responseTimeByUserLoadChart"></canvas>
+          <canvas id="responseTimesChart"></canvas>
         </div>
         <div class="chart-container">
-          <canvas id="throughputByUserLoadChart"></canvas>
+          <canvas id="throughputChart"></canvas>
         </div>
         <div class="chart-container">
-          <canvas id="errorsByUserLoadChart"></canvas>
+          <canvas id="errorsChart"></canvas>
         </div>
         <div class="chart-container">
-          <canvas id="timeBasedPercentilesChart"></canvas>
+          <canvas id="hitsChart"></canvas>
         </div>
         
         <!-- Performance Correlation Analysis -->
         <div class="correlation-section full-width">
           <h3 class="correlation-title">Performance Correlation Analysis</h3>
-          <p class="correlation-description">These scatter charts with trendlines reveal relationships between different performance metrics, helping identify patterns and performance bottlenecks.</p>
+          <p class="correlation-description">These scatter charts reveal relationships between different performance metrics, helping identify patterns and performance bottlenecks.</p>
           <div class="correlation-grid">
             <div class="chart-container">
               <canvas id="throughputVsResponseTimeChart"></canvas>
@@ -355,183 +355,127 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
   const generateChartScripts = () => `
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-trendline"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
     <script>
       // Chart data
       const chartData = ${JSON.stringify(data.chartData)};
       
-      // SLA Thresholds
-      const SLA_THRESHOLDS = {
-        maxResponseTime: 4000,
-        maxErrorRate: 10
-      };
-      
-      // Response Time by User Load Chart
-      const responseTimeByUserLoadCtx = document.getElementById('responseTimeByUserLoadChart').getContext('2d');
-      const aggregateData = chartData.responseTimeByUserLoad.filter(d => !d.label).sort((a, b) => a.activeUsers - b.activeUsers);
-      const transactionData = chartData.responseTimeByUserLoad.filter(d => d.label);
-      const groupedTransactionData = transactionData.reduce((acc, point) => {
+      // Response Times Chart
+      const responseTimesCtx = document.getElementById('responseTimesChart').getContext('2d');
+      const groupedResponseTimes = chartData.responseTimesOverTime.reduce((acc, point) => {
         if (!acc[point.label]) acc[point.label] = [];
-        acc[point.label].push({ x: point.activeUsers, y: point.medianResponseTime });
+        acc[point.label].push({ x: point.x, y: point.y });
         return acc;
       }, {});
       
-      const responseTimeDatasets = [];
-      if (aggregateData.length > 0) {
-        responseTimeDatasets.push({
-          label: 'Aggregate Median',
-          data: aggregateData.map(d => ({ x: d.activeUsers, y: d.medianResponseTime })),
-          borderColor: 'rgb(59, 130, 246)',
-          backgroundColor: 'rgba(59, 130, 246, 0.1)',
-          borderWidth: 3,
-          fill: false,
-          tension: 0.1,
-          pointRadius: 4,
-        });
-      }
-      Object.entries(groupedTransactionData).forEach(([label, points], index) => {
-        responseTimeDatasets.push({
-          label,
-          data: points.sort((a, b) => a.x - b.x),
-          borderColor: \`hsl(\${(index * 137.5 + 60) % 360}, 70%, 50%)\`,
-          backgroundColor: \`hsla(\${(index * 137.5 + 60) % 360}, 70%, 50%, 0.1)\`,
-          borderWidth: 2,
-          fill: false,
-          tension: 0.1,
-          pointRadius: 3,
-          hidden: true, // Start with transaction lines hidden
-        });
-      });
-      
-      new Chart(responseTimeByUserLoadCtx, {
+      new Chart(responseTimesCtx, {
         type: 'line',
-        data: { datasets: responseTimeDatasets },
+        data: {
+          datasets: Object.entries(groupedResponseTimes).map(([label, points], index) => ({
+            label,
+            data: points,
+            borderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 50%)\`,
+            backgroundColor: \`hsla(\${(index * 137.5) % 360}, 70%, 50%, 0.1)\`,
+            fill: false,
+            tension: 0.1,
+            pointRadius: 2,
+            pointHoverRadius: 4,
+          }))
+        },
         options: {
           responsive: true,
           maintainAspectRatio: false,
           scales: {
-            x: { title: { display: true, text: 'Active Users' } },
-            y: { title: { display: true, text: 'Median Response Time (ms)' } }
+            x: {
+              type: 'time',
+              title: { display: true, text: 'Elapsed Time' }
+            },
+            y: { title: { display: true, text: 'Response Time (ms)' } }
           },
           plugins: {
-            title: { display: true, text: 'Response Time by User Load' },
+            title: { display: true, text: 'Response Times Over Time' },
             legend: { display: true, position: 'top' }
           }
         }
       });
       
-      // Throughput by User Load Chart
-      const throughputByUserLoadCtx = document.getElementById('throughputByUserLoadChart').getContext('2d');
-      new Chart(throughputByUserLoadCtx, {
+      // Throughput Chart
+      const throughputCtx = document.getElementById('throughputChart').getContext('2d');
+      new Chart(throughputCtx, {
         type: 'line',
         data: {
           datasets: [{
-            label: 'Throughput (Moving Average)',
-            data: chartData.throughputByUserLoad.map(d => ({ x: d.activeUsers, y: d.throughput })),
-            borderColor: 'rgb(34, 197, 94)',
-            backgroundColor: 'rgba(34, 197, 94, 0.1)',
-            borderWidth: 3,
+            label: 'Throughput',
+            data: chartData.tpsOverTime,
+            borderColor: 'rgb(59, 130, 246)',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
             fill: true,
-            tension: 0.2,
-            pointRadius: 4,
+            tension: 0.1,
+            pointRadius: 2,
+            pointHoverRadius: 4,
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
           scales: {
-            x: { title: { display: true, text: 'Active Users' } },
-            y: { title: { display: true, text: 'Throughput (Requests/sec)' }, beginAtZero: true }
+            x: {
+              type: 'time',
+              title: { display: true, text: 'Elapsed Time' }
+            },
+            y: { title: { display: true, text: 'Requests/sec' } }
           },
           plugins: {
-            title: { display: true, text: 'Throughput by User Load' },
+            title: { display: true, text: 'Throughput Over Time' },
             legend: { display: false }
           }
         }
       });
       
-      // Errors by User Load Chart
-      const errorsByUserLoadCtx = document.getElementById('errorsByUserLoadChart').getContext('2d');
-      new Chart(errorsByUserLoadCtx, {
-        type: 'line',
+      // Errors Chart
+      const errorsCtx = document.getElementById('errorsChart').getContext('2d');
+      new Chart(errorsCtx, {
+        type: 'bar',
         data: {
           datasets: [{
-            label: 'Error Rate',
-            data: chartData.errorsByUserLoad.map(d => ({ x: d.activeUsers, y: d.errorRate })),
+            label: 'Errors',
+            data: chartData.errorsOverTime,
             borderColor: 'rgb(239, 68, 68)',
             backgroundColor: 'rgba(239, 68, 68, 0.1)',
-            borderWidth: 3,
-            fill: true,
-            tension: 0.1,
-            pointRadius: 4,
+            borderWidth: 1,
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
           scales: {
-            x: { title: { display: true, text: 'Active Users' } },
-            y: { title: { display: true, text: 'Error Rate (%)' }, beginAtZero: true }
+            x: {
+              type: 'time',
+              title: { display: true, text: 'Elapsed Time' }
+            },
+            y: { title: { display: true, text: 'Number of Errors' } }
           },
           plugins: {
-            title: { display: true, text: 'Error Rate by User Load' },
-            legend: { display: false },
-            annotation: {
-              annotations: {
-                slaLine: {
-                  type: 'line',
-                  yMin: SLA_THRESHOLDS.maxErrorRate,
-                  yMax: SLA_THRESHOLDS.maxErrorRate,
-                  borderColor: 'rgb(220, 38, 38)',
-                  borderWidth: 2,
-                  borderDash: [5, 5],
-                  label: {
-                    content: \`Max Error Rate SLA: \${SLA_THRESHOLDS.maxErrorRate}%\`,
-                    enabled: true,
-                    position: 'end',
-                    backgroundColor: 'rgba(220, 38, 38, 0.8)',
-                    color: 'white'
-                  }
-                }
-              }
-            }
+            title: { display: true, text: 'Errors Over Time' },
+            legend: { display: false }
           }
         }
       });
       
-      // Time-Based Percentiles Chart
-      const timeBasedPercentilesCtx = document.getElementById('timeBasedPercentilesChart').getContext('2d');
-      new Chart(timeBasedPercentilesCtx, {
+      // Hits Chart
+      const hitsCtx = document.getElementById('hitsChart').getContext('2d');
+      new Chart(hitsCtx, {
         type: 'line',
         data: {
           datasets: [
             {
-              label: 'P90',
-              data: chartData.timeBasedPercentiles.map(d => ({ x: d.timestamp, y: d.p90 })),
-              borderColor: 'rgb(245, 158, 11)',
-              borderWidth: 2,
-              fill: false,
+              label: 'Hits/sec',
+              data: chartData.hitsOverTime,
+              borderColor: 'rgb(34, 197, 94)',
+              backgroundColor: 'rgba(34, 197, 94, 0.1)',
+              fill: true,
               tension: 0.1,
-              pointRadius: 3,
-            },
-            {
-              label: 'P95',
-              data: chartData.timeBasedPercentiles.map(d => ({ x: d.timestamp, y: d.p95 })),
-              borderColor: 'rgb(249, 115, 22)',
-              borderWidth: 2,
-              fill: false,
-              tension: 0.1,
-              pointRadius: 3,
-            },
-            {
-              label: 'P99',
-              data: chartData.timeBasedPercentiles.map(d => ({ x: d.timestamp, y: d.p99 })),
-              borderColor: 'rgb(239, 68, 68)',
-              borderWidth: 2,
-              fill: false,
-              tension: 0.1,
-              pointRadius: 3,
+              pointRadius: 2,
+              pointHoverRadius: 4,
             }
           ]
         },
@@ -541,91 +485,40 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
           scales: {
             x: {
               type: 'time',
-              title: { display: true, text: 'Time Since Start' }
+              title: { display: true, text: 'Elapsed Time' }
             },
-            y: { title: { display: true, text: 'Response Time (ms)' }, beginAtZero: true }
+            y: { title: { display: true, text: 'Hits/sec' } }
           },
           plugins: {
-            title: { display: true, text: 'Response Time Percentiles Over Time' },
-            legend: { display: true, position: 'top' },
-            annotation: {
-              annotations: {
-                targetZone: {
-                  type: 'box',
-                  yMin: 0,
-                  yMax: SLA_THRESHOLDS.maxResponseTime * 0.8,
-                  backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                  label: {
-                    content: 'Target Zone',
-                    enabled: true,
-                    position: 'start',
-                    backgroundColor: 'rgba(34, 197, 94, 0.8)',
-                    color: 'white'
-                  }
-                },
-                slaZone: {
-                  type: 'box',
-                  yMin: SLA_THRESHOLDS.maxResponseTime * 0.8,
-                  yMax: SLA_THRESHOLDS.maxResponseTime,
-                  backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                  label: {
-                    content: 'Acceptable Zone',
-                    enabled: true,
-                    position: 'center',
-                    backgroundColor: 'rgba(245, 158, 11, 0.8)',
-                    color: 'white'
-                  }
-                },
-                breachZone: {
-                  type: 'box',
-                  yMin: SLA_THRESHOLDS.maxResponseTime,
-                  yMax: SLA_THRESHOLDS.maxResponseTime * 2,
-                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                  label: {
-                    content: 'SLA Breach Zone',
-                    enabled: true,
-                    position: 'end',
-                    backgroundColor: 'rgba(239, 68, 68, 0.8)',
-                    color: 'white'
-                  }
-                }
-              }
-            }
+            title: { display: true, text: 'Hits Over Time' },
+            legend: { display: false }
           }
         }
       });
       
-      // Throughput vs Response Time Chart (with density and trendline)
+      // Throughput vs Response Time Chart
       const throughputVsResponseTimeCtx = document.getElementById('throughputVsResponseTimeChart').getContext('2d');
-      const groupedThroughputVsResponseTime = chartData.throughputVsResponseTimeWithDensity.reduce((acc, point) => {
+      const groupedThroughputVsResponseTime = chartData.throughputVsResponseTime.reduce((acc, point) => {
         if (!acc[point.label]) acc[point.label] = [];
-        acc[point.label].push({ x: point.x, y: point.y, density: point.density });
+        acc[point.label].push({ x: point.x, y: point.y });
         return acc;
       }, {});
       
       new Chart(throughputVsResponseTimeCtx, {
-        type: 'line',
+        type: 'scatter',
         data: {
           datasets: Object.entries(groupedThroughputVsResponseTime).map(([label, points], index) => ({
             label,
-            data: points.sort((a, b) => a.x - b.x),
-            backgroundColor: points.map(point => {
-              const intensity = Math.max(0.3, point.density);
-              const alpha = 0.4 + (point.density * 0.6);
-              return \`hsla(\${(index * 137.5) % 360}, 70%, \${50 + (intensity * 30)}%, \${alpha})\`;
-            }),
+            data: points,
+            backgroundColor: \`hsla(\${(index * 137.5) % 360}, 70%, 50%, 0.6)\`,
             borderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 40%)\`,
-            borderWidth: 2,
-            fill: false,
-            tension: 0.1,
-            pointRadius: points.map(point => 3 + ((point.density || 0.5) * 3)),
+            borderWidth: 1,
+            pointRadius: 4,
             pointHoverRadius: 6,
-            showLine: true,
-            trendlineLinear: {
-              style: \`hsl(\${(index * 137.5) % 360}, 70%, 30%)\`,
-              lineStyle: 'solid',
-              width: 2,
-            }
+            pointBackgroundColor: \`hsl(\${(index * 137.5) % 360}, 70%, 50%)\`,
+            pointBorderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 30%)\`,
+            pointBorderWidth: 1,
+            showLine: false,
           }))
         },
         options: {
@@ -643,35 +536,27 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
       
       // Users vs Response Time Chart
       const usersVsResponseTimeCtx = document.getElementById('usersVsResponseTimeChart').getContext('2d');
-      const groupedUsersVsResponseTime = chartData.usersVsResponseTimeWithDensity.reduce((acc, point) => {
+      const groupedUsersVsResponseTime = chartData.usersVsResponseTime.reduce((acc, point) => {
         if (!acc[point.label]) acc[point.label] = [];
-        acc[point.label].push({ x: point.x, y: point.y, density: point.density });
+        acc[point.label].push({ x: point.x, y: point.y });
         return acc;
       }, {});
       
       new Chart(usersVsResponseTimeCtx, {
-        type: 'line',
+        type: 'scatter',
         data: {
           datasets: Object.entries(groupedUsersVsResponseTime).map(([label, points], index) => ({
             label,
-            data: points.sort((a, b) => a.x - b.x),
-            backgroundColor: points.map(point => {
-              const intensity = Math.max(0.3, point.density);
-              const alpha = 0.4 + (point.density * 0.6);
-              return \`hsla(\${(index * 137.5) % 360}, 70%, \${50 + (intensity * 30)}%, \${alpha})\`;
-            }),
+            data: points,
+            backgroundColor: \`hsla(\${(index * 137.5) % 360}, 70%, 50%, 0.6)\`,
             borderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 40%)\`,
-            borderWidth: 2,
-            fill: false,
-            tension: 0.1,
-            pointRadius: points.map(point => 3 + ((point.density || 0.5) * 3)),
+            borderWidth: 1,
+            pointRadius: 4,
             pointHoverRadius: 6,
-            showLine: true,
-            trendlineLinear: {
-              style: \`hsl(\${(index * 137.5) % 360}, 70%, 30%)\`,
-              lineStyle: 'solid',
-              width: 2,
-            }
+            pointBackgroundColor: \`hsl(\${(index * 137.5) % 360}, 70%, 50%)\`,
+            pointBorderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 30%)\`,
+            pointBorderWidth: 1,
+            showLine: false,
           }))
         },
         options: {
@@ -682,26 +567,7 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
             y: { title: { display: true, text: 'Response Time (ms)' } }
           },
           plugins: {
-            title: { display: true, text: 'Users vs Response Time' },
-            annotation: {
-              annotations: {
-                slaLine: {
-                  type: 'line',
-                  yMin: SLA_THRESHOLDS.maxResponseTime,
-                  yMax: SLA_THRESHOLDS.maxResponseTime,
-                  borderColor: 'rgb(220, 38, 38)',
-                  borderWidth: 2,
-                  borderDash: [5, 5],
-                  label: {
-                    content: \`Max Response Time SLA: \${SLA_THRESHOLDS.maxResponseTime}ms\`,
-                    enabled: true,
-                    position: 'end',
-                    backgroundColor: 'rgba(220, 38, 38, 0.8)',
-                    color: 'white'
-                  }
-                }
-              }
-            }
+            title: { display: true, text: 'Users vs Response Time' }
           }
         }
       });
@@ -715,24 +581,20 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
       }, {});
       
       new Chart(errorsVsUsersCtx, {
-        type: 'line',
+        type: 'scatter',
         data: {
           datasets: Object.entries(groupedErrorsVsUsers).map(([label, points], index) => ({
             label,
             data: points,
             backgroundColor: \`hsla(\${(index * 137.5) % 360}, 70%, 50%, 0.6)\`,
             borderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 40%)\`,
-            borderWidth: 2,
-            fill: false,
-            tension: 0.1,
-            pointRadius: 6,
-            pointHoverRadius: 8,
-            showLine: true,
-            trendlineLinear: {
-              style: \`hsl(\${(index * 137.5) % 360}, 70%, 30%)\`,
-              lineStyle: 'solid',
-              width: 2,
-            }
+            borderWidth: 1,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            pointBackgroundColor: \`hsl(\${(index * 137.5) % 360}, 70%, 50%)\`,
+            pointBorderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 30%)\`,
+            pointBorderWidth: 1,
+            showLine: false,
           }))
         },
         options: {
@@ -743,26 +605,7 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
             y: { title: { display: true, text: 'Response Time (ms)' } }
           },
           plugins: {
-            title: { display: true, text: 'Errors vs Users' },
-            annotation: {
-              annotations: {
-                slaLine: {
-                  type: 'line',
-                  yMin: SLA_THRESHOLDS.maxResponseTime,
-                  yMax: SLA_THRESHOLDS.maxResponseTime,
-                  borderColor: 'rgb(220, 38, 38)',
-                  borderWidth: 2,
-                  borderDash: [5, 5],
-                  label: {
-                    content: \`Max Response Time: \${SLA_THRESHOLDS.maxResponseTime}ms\`,
-                    enabled: true,
-                    position: 'end',
-                    backgroundColor: 'rgba(220, 38, 38, 0.8)',
-                    color: 'white'
-                  }
-                }
-              }
-            }
+            title: { display: true, text: 'Errors vs Users' }
           }
         }
       });
@@ -776,24 +619,20 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
       }, {});
       
       new Chart(errorsVsResponseTimeCtx, {
-        type: 'line',
+        type: 'scatter',
         data: {
           datasets: Object.entries(groupedErrorsVsResponseTime).map(([label, points], index) => ({
             label,
             data: points,
             backgroundColor: \`hsla(\${(index * 137.5) % 360}, 70%, 50%, 0.6)\`,
             borderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 40%)\`,
-            borderWidth: 2,
-            fill: false,
-            tension: 0.1,
-            pointRadius: 6,
-            pointHoverRadius: 8,
-            showLine: true,
-            trendlineLinear: {
-              style: \`hsl(\${(index * 137.5) % 360}, 70%, 30%)\`,
-              lineStyle: 'solid',
-              width: 2,
-            }
+            borderWidth: 1,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            pointBackgroundColor: \`hsl(\${(index * 137.5) % 360}, 70%, 50%)\`,
+            pointBorderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 30%)\`,
+            pointBorderWidth: 1,
+            showLine: false,
           }))
         },
         options: {
