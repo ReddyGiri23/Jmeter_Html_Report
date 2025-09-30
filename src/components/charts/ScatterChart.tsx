@@ -25,21 +25,33 @@ const ScatterChart: React.FC<ScatterChartProps> = ({ data }) => {
       return acc;
     }, {} as Record<string, Array<{ x: number; y: number }>>);
 
+    // Sort each group by x value for proper line connections
     const datasets = Object.entries(groupedData).map(([label, points], index) => ({
       label,
-      data: points,
+      data: points.sort((a, b) => a.x - b.x),
       backgroundColor: `hsla(${(index * 137.5) % 360}, 70%, 50%, 0.6)`,
       borderColor: `hsl(${(index * 137.5) % 360}, 70%, 40%)`,
+      borderWidth: 2,
+      fill: false,
+      tension: 0.1,
       pointRadius: 4,
       pointHoverRadius: 6,
+      pointBackgroundColor: `hsl(${(index * 137.5) % 360}, 70%, 50%)`,
+      pointBorderColor: `hsl(${(index * 137.5) % 360}, 70%, 30%)`,
+      pointBorderWidth: 1,
+      showLine: true,
     }));
 
     chartRef.current = new Chart(canvasRef.current, {
-      type: 'scatter',
+      type: 'line',
       data: { datasets },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        interaction: {
+          intersect: false,
+          mode: 'index'
+        },
         scales: {
           x: {
             title: {
@@ -62,6 +74,16 @@ const ScatterChart: React.FC<ScatterChartProps> = ({ data }) => {
           legend: {
             display: true,
             position: 'top'
+          },
+          tooltip: {
+            callbacks: {
+              title: function(context) {
+                return context[0].dataset.label || '';
+              },
+              label: function(context) {
+                return `Throughput: ${context.parsed.x.toFixed(2)} req/s, Response Time: ${context.parsed.y.toFixed(0)} ms`;
+              }
+            }
           }
         }
       }

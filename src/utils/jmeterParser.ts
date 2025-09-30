@@ -394,12 +394,44 @@ const generateChartData = (samples: JMeterSample[], transactions: TransactionMet
     };
   });
 
-  // Throughput vs Response Time scatter plot
-  const throughputVsResponseTime = transactions.map(transaction => ({
-    x: transaction.throughput,
-    y: transaction.avgResponseTime,
-    label: transaction.label
-  }));
+  // Enhanced Throughput vs Response Time with time-based data points
+  const throughputVsResponseTime: Array<{ x: number; y: number; label: string }> = [];
+  
+  // Group samples by transaction and time intervals for trend analysis
+  const transactionTimeIntervals = new Map<string, Map<number, { totalTime: number; count: number }>>();
+  
+  samples.forEach(sample => {
+    const timeSlot = Math.floor(sample.timeStamp / (timeInterval * 2)) * (timeInterval * 2); // 2-minute intervals
+    
+    if (!transactionTimeIntervals.has(sample.label)) {
+      transactionTimeIntervals.set(sample.label, new Map());
+    }
+    
+    const labelMap = transactionTimeIntervals.get(sample.label)!;
+    if (!labelMap.has(timeSlot)) {
+      labelMap.set(timeSlot, { totalTime: 0, count: 0 });
+    }
+    
+    const slot = labelMap.get(timeSlot)!;
+    slot.totalTime += sample.elapsed;
+    slot.count += 1;
+  });
+  
+  // Convert to throughput vs response time data points
+  transactionTimeIntervals.forEach((timeSlots, label) => {
+    timeSlots.forEach((data, timeSlot) => {
+      if (data.count >= 5) { // Only include time slots with sufficient data
+        const avgResponseTime = data.totalTime / data.count;
+        const throughput = data.count / (timeInterval * 2 / 1000); // Convert to req/s
+        
+        throughputVsResponseTime.push({
+          x: throughput,
+          y: avgResponseTime,
+          label: label
+        });
+      }
+    });
+  });
 
   const chartData: ChartData = {
     responseTimesOverTime,
