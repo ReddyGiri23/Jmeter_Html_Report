@@ -111,7 +111,7 @@ const main = async () => {
       name: basename(inputPath),
       size: fileContent.length,
       text: async () => fileContent,
-      type: inputPath.endsWith('.xml') || inputPath.endsWith('.jtl') ? 'text/xml' : 'text/csv'
+      type: inputPath.toLowerCase().endsWith('.xml') || inputPath.toLowerCase().endsWith('.jtl') ? 'text/xml' : 'text/csv'
     } as File;
     
     console.log('⚙️  Processing JMeter data...');
@@ -121,7 +121,9 @@ const main = async () => {
     const htmlReport = generateHTMLReport(jmeterData);
     
     console.log('💾 Saving HTML report...');
-    writeFileSync(outputPath, htmlReport, 'utf-8');
+    // Ensure output path has .html extension
+    const finalOutputPath = outputPath.endsWith('.html') ? outputPath : `${outputPath}/jmeter-report-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.html`;
+    writeFileSync(finalOutputPath, htmlReport, 'utf-8');
     
     console.log('');
     console.log('✅ Report generated successfully!');
@@ -135,7 +137,7 @@ const main = async () => {
     console.log(`   • Error Rate: ${jmeterData.summary.errorRate.toFixed(2)}%`);
     console.log(`   • SLA Status: ${jmeterData.slaResults.overallPassed ? '✅ PASSED' : '❌ FAILED'}`);
     console.log('');
-    console.log(`📂 Open report: ${outputPath}`);
+    console.log(`📂 Open report: ${finalOutputPath}`);
     
   } catch (error) {
     console.error('');

@@ -128,15 +128,29 @@ const parseXML = (text: string, DOMParserClass?: any): JMeterSample[] => {
     const xmlDoc = parser.parseFromString(text, 'text/xml');
     
     // Check for parsing errors
-    const parserError = xmlDoc.querySelector('parsererror');
-    if (parserError) {
-      throw new Error('XML parsing failed: ' + parserError.textContent);
+    if (DOMParserClass) {
+      // For xmldom, check documentElement
+      if (!xmlDoc.documentElement || xmlDoc.documentElement.nodeName === 'parsererror') {
+        throw new Error('XML parsing failed: Invalid XML format');
+      }
+    } else {
+      // For browser DOMParser
+      const parserError = xmlDoc.querySelector('parsererror');
+      if (parserError) {
+        throw new Error('XML parsing failed: ' + parserError.textContent);
+      }
     }
 
-    const httpSamples = xmlDoc.querySelectorAll('httpSample, sample');
-    log(`Found ${httpSamples.length} sample elements in XML`);
+    // Use getElementsByTagName instead of querySelectorAll for xmldom compatibility
+    const httpSamples = xmlDoc.getElementsByTagName('httpSample');
+    const samples = xmlDoc.getElementsByTagName('sample');
     
-    const samples = Array.from(httpSamples)
+    // Combine both NodeLists
+    const allSamples = [...Array.from(httpSamples), ...Array.from(samples)];
+    
+    log(`Found ${allSamples.length} sample elements in XML`);
+    
+    const parsedSamples = allSamples
       .map(sample => {
         const sampleData: JMeterSample = {
           timeStamp: parseInt(sample.getAttribute('ts') || '0'),
@@ -156,10 +170,10 @@ const parseXML = (text: string, DOMParserClass?: any): JMeterSample[] => {
       })
       .filter(validateSample);
 
-    log(`Parsed ${samples.length} valid samples from XML`);
-    log('Sample data preview:', samples.slice(0, 3));
+    log(`Parsed ${parsedSamples.length} valid samples from XML`);
+    log('Sample data preview:', parsedSamples.slice(0, 3));
     
-    return samples;
+    return parsedSamples;
   } catch (error) {
     log('XML parsing error:', error);
     throw new Error(`Failed to parse XML: ${error}`);
