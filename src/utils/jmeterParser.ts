@@ -4,7 +4,7 @@ import * as ss from 'simple-statistics';
 import { JMeterSample, JMeterData, TestSummary, TransactionMetrics, SLAResult, ErrorSample, ChartData } from '../types/jmeter';
 
 // Enhanced logging for debugging
-const DEBUG = true;
+const DEBUG = false;
 const log = (message: string, data?: any) => {
   if (DEBUG) {
     console.log(`[JMeter Parser] ${message}`, data || '');

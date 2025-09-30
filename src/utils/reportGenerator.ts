@@ -1,74 +1,475 @@
-import { JMeterData } from '../types/jmeter';
+import { JMeterData, TestSummary, ComparisonResult } from '../types/jmeter';
 
-export const generateHTMLReport = (data: JMeterData, comparisonData?: { current: JMeterData; previous: JMeterData; fileName: string; previousFileName: string }): string => {
-  // Generate additional chart data for new graphs
-  const generateExtendedChartData = () => {
-    // Hits per second (same as TPS)
-    const hitsPerSecond = data.chartData.tpsOverTime;
-    
-    // Error rate over time
-    const errorRateOverTime = data.chartData.errorsOverTime.map(point => ({
-      x: point.x,
-      y: data.chartData.tpsOverTime.find(tps => tps.x === point.x)?.y 
-        ? (point.y / data.chartData.tpsOverTime.find(tps => tps.x === point.x)!.y) * 100 
-        : 0
-    }));
+interface ComparisonData {
+  current: TestSummary;
+  previous: TestSummary;
+  fileName: string;
+  previousFileName: string;
+}
 
-    // Users over time (based on thread data)
-    const usersOverTime = data.samples
-      .filter((_, index) => index % Math.max(1, Math.floor(data.samples.length / 100)) === 0)
-      .map(sample => ({
-        x: sample.timeStamp,
-        y: sample.allThreads
-      }));
-
-    // Errors vs Response Time
-    const errorsVsResponseTime = data.samples
-      .filter(sample => !sample.success)
-      .map(sample => ({
-        x: sample.elapsed,
-        y: 1,
-        label: sample.label
-      }));
-
-    // Users vs Response Time
-    const usersVsResponseTime = data.samples
-      .filter((_, index) => index % Math.max(1, Math.floor(data.samples.length / 200)) === 0)
-      .map(sample => ({
-        x: sample.allThreads,
-        y: sample.elapsed,
-        label: sample.label
-      }));
-
-    // Errors vs Users
-    const errorsVsUsers = data.samples
-      .filter(sample => !sample.success)
-      .map(sample => ({
-        x: sample.allThreads,
-        y: 1,
-        label: sample.label
-      }));
-
-    return {
-      hitsPerSecond,
-      errorRateOverTime,
-      usersOverTime,
-      errorsVsResponseTime,
-      usersVsResponseTime,
-      errorsVsUsers
-    };
+export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData): string => {
+  const formatDate = (timestamp: number): string => {
+    return new Date(timestamp).toLocaleString();
   };
 
-  const extendedChartData = generateExtendedChartData();
+  const formatDuration = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m ${secs}s`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${secs}s`;
+    } else {
+      return `${secs}s`;
+    }
+  };
 
-  return `<!DOCTYPE html>
+  const generateDashboardTab = () => `
+    <div id="dashboard" class="tab-content active">
+      <div class="summary-grid">
+        <div class="summary-card">
+          <h3>Test Configuration</h3>
+          <div class="config-grid">
+            <div class="config-item">
+              <span class="label">Application Version:</span>
+              <span class="value">${data.summary.applicationVersion}</span>
+            </div>
+            <div class="config-item">
+              <span class="label">Test Environment:</span>
+              <span class="value">${data.summary.testEnvironment}</span>
+            </div>
+            <div class="config-item">
+              <span class="label">Test Duration:</span>
+              <span class="value">${formatDuration(data.summary.testDuration)}</span>
+            </div>
+            <div class="config-item">
+              <span class="label">Virtual Users:</span>
+              <span class="value">${data.summary.virtualUsers}</span>
+            </div>
+            <div class="config-item">
+              <span class="label">Total Requests:</span>
+              <span class="value">${data.summary.totalRequests.toLocaleString()}</span>
+            </div>
+            <div class="config-item">
+              <span class="label">Total Errors:</span>
+              <span class="value">${data.summary.totalErrors.toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="summary-card">
+          <h3>SLA Gates Status</h3>
+          <div class="sla-status ${data.slaResults.overallPassed ? 'passed' : 'failed'}">
+            <div class="sla-overall">
+              ${data.slaResults.overallPassed ? '✅ All SLAs Passed' : '❌ SLA Violations'}
+            </div>
+            <div class="sla-details">
+              <div class="sla-item ${data.slaResults.p95ResponseTime.passed ? 'passed' : 'failed'}">
+                <span>95th Percentile: ${data.slaResults.p95ResponseTime.value.toFixed(0)}ms</span>
+                <span>(≤ ${data.slaResults.p95ResponseTime.threshold}ms)</span>
+              </div>
+              <div class="sla-item ${data.slaResults.averageThroughput.passed ? 'passed' : 'failed'}">
+                <span>Throughput: ${data.slaResults.averageThroughput.value.toFixed(2)} req/s</span>
+                <span>(≥ ${data.slaResults.averageThroughput.threshold} req/s)</span>
+              </div>
+              <div class="sla-item ${data.slaResults.errorRate.passed ? 'passed' : 'failed'}">
+                <span>Error Rate: ${data.slaResults.errorRate.value.toFixed(2)}%</span>
+                <span>(≤ ${data.slaResults.errorRate.threshold}%)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-value">${data.summary.overallThroughput.toFixed(2)}</div>
+          <div class="metric-label">Throughput (req/s)</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value">${data.summary.avgResponseTime.toFixed(0)}</div>
+          <div class="metric-label">Avg Response Time (ms)</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value">${data.summary.p95ResponseTime.toFixed(0)}</div>
+          <div class="metric-label">95th Percentile (ms)</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value">${data.summary.errorRate.toFixed(2)}%</div>
+          <div class="metric-label">Error Rate</div>
+        </div>
+      </div>
+
+      <div class="aggregate-table">
+        <h3>Aggregate Report</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Transaction</th>
+              <th>Requests</th>
+              <th>Avg (ms)</th>
+              <th>Median (ms)</th>
+              <th>95th % (ms)</th>
+              <th>Max (ms)</th>
+              <th>Errors</th>
+              <th>Error %</th>
+              <th>Throughput/sec</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.transactions.map(t => `
+              <tr>
+                <td>${t.label}</td>
+                <td>${t.count.toLocaleString()}</td>
+                <td>${t.avgResponseTime.toFixed(0)}</td>
+                <td>${t.medianResponseTime.toFixed(0)}</td>
+                <td>${t.p95ResponseTime.toFixed(0)}</td>
+                <td>${t.maxResponseTime.toFixed(0)}</td>
+                <td>${t.errors.toLocaleString()}</td>
+                <td class="${t.errorRate > 10 ? 'error-high' : t.errorRate > 5 ? 'error-medium' : 'error-low'}">${t.errorRate.toFixed(2)}%</td>
+                <td>${t.throughput.toFixed(2)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  const generateGraphsTab = () => `
+    <div id="graphs" class="tab-content">
+      <div class="charts-grid">
+        <div class="chart-container">
+          <canvas id="responseTimesChart"></canvas>
+        </div>
+        <div class="chart-container">
+          <canvas id="throughputChart"></canvas>
+        </div>
+        <div class="chart-container">
+          <canvas id="errorsChart"></canvas>
+        </div>
+        <div class="chart-container">
+          <canvas id="percentilesChart"></canvas>
+        </div>
+        <div class="chart-container full-width">
+          <canvas id="scatterChart"></canvas>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const generateErrorsTab = () => `
+    <div id="errors" class="tab-content">
+      <div class="error-summary">
+        <h3>Error Report</h3>
+        ${data.errorSamples.length === 0 ? `
+          <div class="no-errors">
+            <div class="success-icon">✅</div>
+            <p>No Errors Found</p>
+            <small>All requests completed successfully!</small>
+          </div>
+        ` : `
+          <div class="error-count">
+            <span class="error-badge">${data.errorSamples.length} Error${data.errorSamples.length !== 1 ? 's' : ''} Found</span>
+          </div>
+          <table class="error-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Transaction</th>
+                <th>Response Time</th>
+                <th>Thread/User</th>
+                <th>Error Message</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.errorSamples.map(error => `
+                <tr>
+                  <td>${formatDate(error.timestamp)}</td>
+                  <td>${error.label}</td>
+                  <td>${error.responseTime.toFixed(0)} ms</td>
+                  <td>${error.threadName}</td>
+                  <td class="error-message">${error.responseMessage || 'Unknown error'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `}
+      </div>
+    </div>
+  `;
+
+  const generateComparisonTab = (comparisonData: ComparisonData) => `
+    <div id="comparison" class="tab-content">
+      <div class="comparison-header">
+        <h3>Performance Comparison</h3>
+        <div class="comparison-files">
+          <div class="file-info current">
+            <h4>Current Test</h4>
+            <p>${comparisonData.fileName}</p>
+            <small>${comparisonData.current.totalRequests.toLocaleString()} requests, ${comparisonData.current.avgResponseTime.toFixed(0)}ms avg</small>
+          </div>
+          <div class="file-info previous">
+            <h4>Previous Test</h4>
+            <p>${comparisonData.previousFileName}</p>
+            <small>${comparisonData.previous.totalRequests.toLocaleString()} requests, ${comparisonData.previous.avgResponseTime.toFixed(0)}ms avg</small>
+          </div>
+        </div>
+      </div>
+      
+      <div class="comparison-metrics">
+        <div class="metric-comparison">
+          <h4>Overall Performance Comparison</h4>
+          <div class="comparison-grid">
+            <div class="comparison-item">
+              <span class="metric-name">Average Response Time</span>
+              <div class="comparison-values">
+                <span class="current">${comparisonData.current.avgResponseTime.toFixed(0)}ms</span>
+                <span class="vs">vs</span>
+                <span class="previous">${comparisonData.previous.avgResponseTime.toFixed(0)}ms</span>
+                <span class="change ${comparisonData.current.avgResponseTime < comparisonData.previous.avgResponseTime ? 'improvement' : 'regression'}">
+                  ${((comparisonData.current.avgResponseTime - comparisonData.previous.avgResponseTime) / comparisonData.previous.avgResponseTime * 100).toFixed(1)}%
+                </span>
+              </div>
+            </div>
+            
+            <div class="comparison-item">
+              <span class="metric-name">Throughput</span>
+              <div class="comparison-values">
+                <span class="current">${comparisonData.current.overallThroughput.toFixed(2)} req/s</span>
+                <span class="vs">vs</span>
+                <span class="previous">${comparisonData.previous.overallThroughput.toFixed(2)} req/s</span>
+                <span class="change ${comparisonData.current.overallThroughput > comparisonData.previous.overallThroughput ? 'improvement' : 'regression'}">
+                  ${((comparisonData.current.overallThroughput - comparisonData.previous.overallThroughput) / comparisonData.previous.overallThroughput * 100).toFixed(1)}%
+                </span>
+              </div>
+            </div>
+            
+            <div class="comparison-item">
+              <span class="metric-name">Error Rate</span>
+              <div class="comparison-values">
+                <span class="current">${comparisonData.current.errorRate.toFixed(2)}%</span>
+                <span class="vs">vs</span>
+                <span class="previous">${comparisonData.previous.errorRate.toFixed(2)}%</span>
+                <span class="change ${comparisonData.current.errorRate < comparisonData.previous.errorRate ? 'improvement' : 'regression'}">
+                  ${((comparisonData.current.errorRate - comparisonData.previous.errorRate) / Math.max(comparisonData.previous.errorRate, 0.01) * 100).toFixed(1)}%
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const generateChartScripts = () => `
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script>
+      // Chart data
+      const chartData = ${JSON.stringify(data.chartData)};
+      
+      // Response Times Over Time Chart
+      const responseTimesCtx = document.getElementById('responseTimesChart').getContext('2d');
+      const groupedResponseTimes = chartData.responseTimesOverTime.reduce((acc, point) => {
+        if (!acc[point.label]) acc[point.label] = [];
+        acc[point.label].push({ x: point.x, y: point.y });
+        return acc;
+      }, {});
+      
+      new Chart(responseTimesCtx, {
+        type: 'line',
+        data: {
+          datasets: Object.entries(groupedResponseTimes).map(([label, points], index) => ({
+            label,
+            data: points.sort((a, b) => a.x - b.x),
+            borderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 50%)\`,
+            backgroundColor: \`hsl(\${(index * 137.5) % 360}, 70%, 90%)\`,
+            fill: false,
+            tension: 0.1,
+            pointRadius: 2,
+            pointHoverRadius: 4,
+          }))
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              type: 'time',
+              title: { display: true, text: 'Time' }
+            },
+            y: {
+              title: { display: true, text: 'Response Time (ms)' }
+            }
+          },
+          plugins: {
+            title: { display: true, text: 'Response Times Over Time' }
+          }
+        }
+      });
+      
+      // Throughput Chart
+      const throughputCtx = document.getElementById('throughputChart').getContext('2d');
+      new Chart(throughputCtx, {
+        type: 'line',
+        data: {
+          datasets: [{
+            label: 'Throughput',
+            data: chartData.tpsOverTime,
+            borderColor: 'rgb(59, 130, 246)',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            fill: true,
+            tension: 0.1,
+            pointRadius: 2,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              type: 'time',
+              title: { display: true, text: 'Time' }
+            },
+            y: {
+              title: { display: true, text: 'Requests/sec' }
+            }
+          },
+          plugins: {
+            title: { display: true, text: 'Throughput Over Time' },
+            legend: { display: false }
+          }
+        }
+      });
+      
+      // Errors Chart
+      const errorsCtx = document.getElementById('errorsChart').getContext('2d');
+      new Chart(errorsCtx, {
+        type: 'bar',
+        data: {
+          datasets: [{
+            label: 'Errors',
+            data: chartData.errorsOverTime,
+            backgroundColor: 'rgba(239, 68, 68, 0.8)',
+            borderColor: 'rgb(239, 68, 68)',
+            borderWidth: 1,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              type: 'time',
+              title: { display: true, text: 'Time' }
+            },
+            y: {
+              title: { display: true, text: 'Number of Errors' }
+            }
+          },
+          plugins: {
+            title: { display: true, text: 'Errors Over Time' },
+            legend: { display: false }
+          }
+        }
+      });
+      
+      // Percentiles Chart
+      const percentilesCtx = document.getElementById('percentilesChart').getContext('2d');
+      new Chart(percentilesCtx, {
+        type: 'bar',
+        data: {
+          labels: chartData.percentiles.map(d => d.label),
+          datasets: [
+            {
+              label: 'p50',
+              data: chartData.percentiles.map(d => d.p50),
+              backgroundColor: 'rgba(34, 197, 94, 0.8)',
+            },
+            {
+              label: 'p75',
+              data: chartData.percentiles.map(d => d.p75),
+              backgroundColor: 'rgba(59, 130, 246, 0.8)',
+            },
+            {
+              label: 'p90',
+              data: chartData.percentiles.map(d => d.p90),
+              backgroundColor: 'rgba(245, 158, 11, 0.8)',
+            },
+            {
+              label: 'p95',
+              data: chartData.percentiles.map(d => d.p95),
+              backgroundColor: 'rgba(249, 115, 22, 0.8)',
+            },
+            {
+              label: 'p99',
+              data: chartData.percentiles.map(d => d.p99),
+              backgroundColor: 'rgba(239, 68, 68, 0.8)',
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { title: { display: true, text: 'Transaction' } },
+            y: { title: { display: true, text: 'Response Time (ms)' } }
+          },
+          plugins: {
+            title: { display: true, text: 'Response Time Percentiles' }
+          }
+        }
+      });
+      
+      // Scatter Chart (Throughput vs Response Time)
+      const scatterCtx = document.getElementById('scatterChart').getContext('2d');
+      const groupedScatter = chartData.throughputVsResponseTime.reduce((acc, point) => {
+        if (!acc[point.label]) acc[point.label] = [];
+        acc[point.label].push({ x: point.x, y: point.y });
+        return acc;
+      }, {});
+      
+      new Chart(scatterCtx, {
+        type: 'line',
+        data: {
+          datasets: Object.entries(groupedScatter).map(([label, points], index) => ({
+            label,
+            data: points.sort((a, b) => a.x - b.x),
+            backgroundColor: \`hsla(\${(index * 137.5) % 360}, 70%, 50%, 0.6)\`,
+            borderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 40%)\`,
+            borderWidth: 2,
+            fill: false,
+            tension: 0.1,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            showLine: true,
+          }))
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { title: { display: true, text: 'Throughput (req/s)' } },
+            y: { title: { display: true, text: 'Response Time (ms)' } }
+          },
+          plugins: {
+            title: { display: true, text: 'Throughput vs Response Time' }
+          }
+        }
+      });
+    </script>
+  `;
+
+  return `
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JMeter Performance Test Report</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <title>JMeter Performance Report</title>
     <style>
         * {
             margin: 0;
@@ -78,1260 +479,469 @@ export const generateHTMLReport = (data: JMeterData, comparisonData?: { current:
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: #f8fafc;
-            color: #1e293b;
             line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
         }
         
         .container {
-            display: flex;
-            min-height: 100vh;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
         }
         
-        .sidebar {
-            width: 280px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 2rem 0;
-            box-shadow: 4px 0 10px rgba(0,0,0,0.1);
-        }
-        
-        .sidebar h1 {
-            font-size: 1.5rem;
-            font-weight: 700;
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
             text-align: center;
-            margin-bottom: 2rem;
-            padding: 0 1rem;
         }
         
-        .nav-tabs {
-            list-style: none;
+        .header h1 {
+            color: #2563eb;
+            margin-bottom: 10px;
+            font-size: 2.5rem;
         }
         
-        .nav-tab {
-            margin: 0.5rem 1rem;
+        .header p {
+            color: #666;
+            font-size: 1.1rem;
         }
         
-        .nav-tab button {
-            width: 100%;
-            background: transparent;
-            border: none;
-            color: white;
-            padding: 1rem 1.5rem;
-            text-align: left;
-            cursor: pointer;
-            border-radius: 8px;
-            font-size: 1rem;
-            transition: all 0.3s ease;
+        .tabs {
             display: flex;
-            align-items: center;
+            background: white;
+            border-radius: 10px 10px 0 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
         }
         
-        .nav-tab button:hover {
-            background: rgba(255,255,255,0.1);
-            transform: translateX(4px);
-        }
-        
-        .nav-tab button.active {
-            background: rgba(255,255,255,0.2);
-            font-weight: 600;
-        }
-        
-        .nav-tab button::before {
-            content: '';
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: rgba(255,255,255,0.6);
-            margin-right: 12px;
-        }
-        
-        .nav-tab button.active::before {
-            background: #fbbf24;
-        }
-        
-        .main-content {
+        .tab {
             flex: 1;
-            padding: 2rem;
-            overflow-y: auto;
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border-right: 1px solid #e9ecef;
+        }
+        
+        .tab:last-child {
+            border-right: none;
+        }
+        
+        .tab.active {
+            background: #2563eb;
+            color: white;
+        }
+        
+        .tab:hover:not(.active) {
+            background: #e9ecef;
         }
         
         .tab-content {
             display: none;
+            background: white;
+            padding: 30px;
+            border-radius: 0 0 10px 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            min-height: 600px;
         }
         
         .tab-content.active {
             display: block;
         }
         
-        .header {
-            background: white;
-            padding: 2rem;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            margin-bottom: 2rem;
+        .summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .summary-card {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 10px;
+            border-left: 4px solid #2563eb;
+        }
+        
+        .summary-card h3 {
+            margin-bottom: 20px;
+            color: #2563eb;
+            font-size: 1.3rem;
+        }
+        
+        .config-grid {
+            display: grid;
+            gap: 12px;
+        }
+        
+        .config-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .config-item:last-child {
+            border-bottom: none;
+        }
+        
+        .label {
+            font-weight: 500;
+            color: #666;
+        }
+        
+        .value {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .sla-status {
             text-align: center;
         }
         
-        .header h2 {
-            font-size: 2rem;
-            color: #1e293b;
-            margin-bottom: 0.5rem;
-        }
-        
-        .header p {
-            color: #64748b;
-            font-size: 1.1rem;
-        }
-        
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
+        .sla-overall {
+            font-size: 1.2rem;
             font-weight: 600;
-            margin-top: 1rem;
+            margin-bottom: 20px;
+            padding: 15px;
+            border-radius: 8px;
         }
         
-        .status-passed {
-            background: #dcfce7;
-            color: #166534;
+        .sla-status.passed .sla-overall {
+            background: #d1fae5;
+            color: #065f46;
         }
         
-        .status-failed {
-            background: #fef2f2;
-            color: #dc2626;
+        .sla-status.failed .sla-overall {
+            background: #fee2e2;
+            color: #991b1b;
         }
         
-        .card {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            margin-bottom: 2rem;
-            overflow: hidden;
+        .sla-details {
+            display: grid;
+            gap: 10px;
         }
         
-        .card-header {
-            padding: 1.5rem 2rem;
-            border-bottom: 1px solid #e2e8f0;
-            background: #f8fafc;
+        .sla-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 0.9rem;
         }
         
-        .card-header h3 {
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: #1e293b;
+        .sla-item.passed {
+            background: #d1fae5;
+            color: #065f46;
         }
         
-        .card-content {
-            padding: 2rem;
+        .sla-item.failed {
+            background: #fee2e2;
+            color: #991b1b;
         }
         
         .metrics-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
+            gap: 20px;
+            margin-bottom: 30px;
         }
         
-        .metric-item {
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 10px;
             text-align: center;
-            padding: 1rem;
-            border-radius: 8px;
-            background: #f8fafc;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
         
         .metric-value {
-            font-size: 2rem;
+            font-size: 2.5rem;
             font-weight: 700;
-            color: #3b82f6;
-            margin-bottom: 0.5rem;
+            margin-bottom: 8px;
         }
         
         .metric-label {
-            font-size: 0.875rem;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
+            font-size: 0.9rem;
+            opacity: 0.9;
         }
         
-        .sla-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1.5rem;
+        .aggregate-table {
+            background: white;
         }
         
-        .sla-item {
-            padding: 1.5rem;
-            border-radius: 8px;
-            border: 2px solid;
-        }
-        
-        .sla-passed {
-            border-color: #10b981;
-            background: #ecfdf5;
-        }
-        
-        .sla-failed {
-            border-color: #ef4444;
-            background: #fef2f2;
-        }
-        
-        .sla-header {
-            display: flex;
-            justify-content: between;
-            align-items: center;
-            margin-bottom: 1rem;
-        }
-        
-        .sla-title {
-            font-weight: 600;
-            color: #1e293b;
-        }
-        
-        .sla-status {
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-        }
-        
-        .sla-status.passed {
-            background: #10b981;
-        }
-        
-        .sla-status.failed {
-            background: #ef4444;
-        }
-        
-        .sla-value {
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-        }
-        
-        .sla-threshold {
-            font-size: 0.875rem;
-            color: #64748b;
-        }
-        
-        .table-container {
-            overflow-x: auto;
+        .aggregate-table h3 {
+            margin-bottom: 20px;
+            color: #2563eb;
+            font-size: 1.3rem;
         }
         
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.875rem;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
         
         th, td {
-            padding: 0.75rem;
+            padding: 12px 15px;
             text-align: left;
-            border-bottom: 1px solid #e2e8f0;
+            border-bottom: 1px solid #e9ecef;
         }
         
         th {
-            background: #f8fafc;
+            background: #f8f9fa;
             font-weight: 600;
-            color: #374151;
+            color: #495057;
+            font-size: 0.9rem;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
-            font-size: 0.75rem;
+            letter-spacing: 0.5px;
         }
         
         tr:hover {
-            background: #f8fafc;
+            background: #f8f9fa;
         }
         
-        .error-badge {
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-        
-        .error-low {
-            background: #dcfce7;
-            color: #166534;
-        }
-        
-        .error-medium {
-            background: #fef3c7;
-            color: #92400e;
-        }
-        
-        .error-high {
-            background: #fef2f2;
-            color: #dc2626;
-        }
+        .error-low { color: #28a745; font-weight: 600; }
+        .error-medium { color: #ffc107; font-weight: 600; }
+        .error-high { color: #dc3545; font-weight: 600; }
         
         .charts-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
-            gap: 2rem;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
         }
         
         .chart-container {
             background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            padding: 1.5rem;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            height: 400px;
         }
         
-        .chart-title {
-            font-size: 1.1rem;
+        .chart-container.full-width {
+            grid-column: 1 / -1;
+        }
+        
+        .no-errors {
+            text-align: center;
+            padding: 60px 20px;
+            color: #28a745;
+        }
+        
+        .success-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+        }
+        
+        .error-count {
+            margin-bottom: 20px;
+        }
+        
+        .error-badge {
+            background: #dc3545;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
             font-weight: 600;
-            color: #1e293b;
-            margin-bottom: 1rem;
+        }
+        
+        .error-table {
+            margin-top: 20px;
+        }
+        
+        .error-message {
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .comparison-header {
+            margin-bottom: 30px;
+        }
+        
+        .comparison-header h3 {
+            color: #2563eb;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+        
+        .comparison-files {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .file-info {
+            padding: 20px;
+            border-radius: 8px;
             text-align: center;
         }
         
-        .chart-canvas {
-            position: relative;
-            height: 300px;
-            width: 100%;
+        .file-info.current {
+            background: #e0f2fe;
+            border-left: 4px solid #0277bd;
+        }
+        
+        .file-info.previous {
+            background: #fff3e0;
+            border-left: 4px solid #f57c00;
+        }
+        
+        .file-info h4 {
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+        
+        .file-info p {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .comparison-metrics {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 10px;
+        }
+        
+        .comparison-grid {
+            display: grid;
+            gap: 20px;
+        }
+        
+        .comparison-item {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .metric-name {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #495057;
+        }
+        
+        .comparison-values {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .current {
+            font-weight: 600;
+            color: #0277bd;
+        }
+        
+        .previous {
+            font-weight: 600;
+            color: #f57c00;
+        }
+        
+        .vs {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .change {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        
+        .change.improvement {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .change.regression {
+            background: #fee2e2;
+            color: #991b1b;
         }
         
         @media (max-width: 768px) {
             .container {
-                flex-direction: column;
+                padding: 10px;
             }
             
-            .sidebar {
-                width: 100%;
-                padding: 1rem 0;
-            }
-            
-            .nav-tabs {
-                display: flex;
-                overflow-x: auto;
-            }
-            
-            .nav-tab {
-                margin: 0 0.5rem;
-                min-width: 120px;
-            }
-            
-            .main-content {
-                padding: 1rem;
+            .summary-grid,
+            .comparison-files {
+                grid-template-columns: 1fr;
             }
             
             .charts-grid {
                 grid-template-columns: 1fr;
+            }
+            
+            .tabs {
+                flex-direction: column;
+            }
+            
+            .tab {
+                border-right: none;
+                border-bottom: 1px solid #e9ecef;
+            }
+            
+            .tab:last-child {
+                border-bottom: none;
             }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="sidebar">
-            <h1>JMeter Report</h1>
-            <ul class="nav-tabs">
-                <li class="nav-tab">
-                    <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
-                </li>
-                <li class="nav-tab">
-                    <button class="tab-btn" data-tab="graphs">Graphs</button>
-                </li>
-                <li class="nav-tab">
-                    <button class="tab-btn" data-tab="errors">Error Report</button>
-                </li>
-                ${comparisonData ? `
-                <li class="nav-tab">
-                    <button class="tab-btn" data-tab="comparison">Comparison</button>
-                </li>
-                ` : ''}
-            </ul>
+        <div class="header">
+            <h1>JMeter Performance Report</h1>
+            <p>Generated on ${formatDate(Date.now())}</p>
         </div>
         
-        <div class="main-content">
-            <!-- Dashboard Tab -->
-            <div id="dashboard" class="tab-content active">
-                <div class="header">
-                    <h2>Performance Test Dashboard</h2>
-                    <p>Generated on ${new Date().toLocaleString()}</p>
-                    <div class="status-badge ${data.slaResults.overallPassed ? 'status-passed' : 'status-failed'}">
-                        Test ${data.slaResults.overallPassed ? 'PASSED' : 'FAILED'}
-                    </div>
-                </div>
-                
-                <!-- Test Configuration Summary -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3>Test Configuration Summary</h3>
-                    </div>
-                    <div class="card-content">
-                        <div class="metrics-grid">
-                            <div class="metric-item">
-                                <div class="metric-value">${data.summary.testDuration}s</div>
-                                <div class="metric-label">Test Duration</div>
-                            </div>
-                            <div class="metric-item">
-                                <div class="metric-value">${data.summary.virtualUsers}</div>
-                                <div class="metric-label">Virtual Users</div>
-                            </div>
-                            <div class="metric-item">
-                                <div class="metric-value">${data.summary.totalRequests.toLocaleString()}</div>
-                                <div class="metric-label">Total Requests</div>
-                            </div>
-                            <div class="metric-item">
-                                <div class="metric-value">${data.summary.totalErrors.toLocaleString()}</div>
-                                <div class="metric-label">Total Errors</div>
-                            </div>
-                            <div class="metric-item">
-                                <div class="metric-value">${data.summary.overallThroughput.toFixed(2)}</div>
-                                <div class="metric-label">Throughput (req/s)</div>
-                            </div>
-                            <div class="metric-item">
-                                <div class="metric-value">${data.summary.avgResponseTime.toFixed(0)}ms</div>
-                                <div class="metric-label">Avg Response Time</div>
-                            </div>
-                            <div class="metric-item">
-                                <div class="metric-value">${data.summary.p95ResponseTime.toFixed(0)}ms</div>
-                                <div class="metric-label">95th Percentile</div>
-                            </div>
-                            <div class="metric-item">
-                                <div class="metric-value">${data.summary.errorRate.toFixed(2)}%</div>
-                                <div class="metric-label">Error Rate</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- SLA Gates Status -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3>SLA Gates Status</h3>
-                    </div>
-                    <div class="card-content">
-                        <div class="sla-grid">
-                            <div class="sla-item ${data.slaResults.p95ResponseTime.passed ? 'sla-passed' : 'sla-failed'}">
-                                <div class="sla-header">
-                                    <div class="sla-title">95th Percentile Response Time</div>
-                                    <div class="sla-status ${data.slaResults.p95ResponseTime.passed ? 'passed' : 'failed'}"></div>
-                                </div>
-                                <div class="sla-value">${data.slaResults.p95ResponseTime.value.toFixed(0)}ms</div>
-                                <div class="sla-threshold">Threshold: ≤ ${data.slaResults.p95ResponseTime.threshold}ms</div>
-                            </div>
-                            <div class="sla-item ${data.slaResults.averageThroughput.passed ? 'sla-passed' : 'sla-failed'}">
-                                <div class="sla-header">
-                                    <div class="sla-title">Average Throughput</div>
-                                    <div class="sla-status ${data.slaResults.averageThroughput.passed ? 'passed' : 'failed'}"></div>
-                                </div>
-                                <div class="sla-value">${data.slaResults.averageThroughput.value.toFixed(2)} req/s</div>
-                                <div class="sla-threshold">Threshold: ≥ ${data.slaResults.averageThroughput.threshold} req/s</div>
-                            </div>
-                            <div class="sla-item ${data.slaResults.errorRate.passed ? 'sla-passed' : 'sla-failed'}">
-                                <div class="sla-header">
-                                    <div class="sla-title">Error Rate</div>
-                                    <div class="sla-status ${data.slaResults.errorRate.passed ? 'passed' : 'failed'}"></div>
-                                </div>
-                                <div class="sla-value">${data.slaResults.errorRate.value.toFixed(2)}%</div>
-                                <div class="sla-threshold">Threshold: ≤ ${data.slaResults.errorRate.threshold}%</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Aggregate Report -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3>Aggregate Report</h3>
-                    </div>
-                    <div class="card-content">
-                        <div class="table-container">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Transaction</th>
-                                        <th>Requests</th>
-                                        <th>Avg (ms)</th>
-                                        <th>Median (ms)</th>
-                                        <th>95th % (ms)</th>
-                                        <th>Max (ms)</th>
-                                        <th>Errors</th>
-                                        <th>Error %</th>
-                                        <th>Throughput/sec</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${data.transactions.map(transaction => `
-                                        <tr>
-                                            <td>${transaction.label}</td>
-                                            <td>${transaction.count.toLocaleString()}</td>
-                                            <td>${transaction.avgResponseTime.toFixed(0)}</td>
-                                            <td>${transaction.medianResponseTime.toFixed(0)}</td>
-                                            <td>${transaction.p95ResponseTime.toFixed(0)}</td>
-                                            <td>${transaction.maxResponseTime.toFixed(0)}</td>
-                                            <td>${transaction.errors.toLocaleString()}</td>
-                                            <td>
-                                                <span class="error-badge ${
-                                                    transaction.errorRate > 10 ? 'error-high' :
-                                                    transaction.errorRate > 5 ? 'error-medium' : 'error-low'
-                                                }">
-                                                    ${transaction.errorRate.toFixed(2)}%
-                                                </span>
-                                            </td>
-                                            <td>${transaction.throughput.toFixed(2)}</td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Graphs Tab -->
-            <div id="graphs" class="tab-content">
-                <div class="header">
-                    <h2>Performance Graphs</h2>
-                    <p>Visual analysis of test metrics over time</p>
-                </div>
-                
-                <div class="charts-grid">
-                    <!-- Chart 1: Average Response Times Over Time -->
-                    <div class="chart-container">
-                        <div class="chart-title">Average Response Times Over Time</div>
-                        <div class="chart-canvas">
-                            <canvas id="avgResponseTimesChart"></canvas>
-                        </div>
-                    </div>
-                    
-                    <!-- Chart 2: Throughput Over Time -->
-                    <div class="chart-container">
-                        <div class="chart-title">Throughput Over Time</div>
-                        <div class="chart-canvas">
-                            <canvas id="throughputChart"></canvas>
-                        </div>
-                    </div>
-                    
-                    <!-- Chart 3: Error Rate Over Time -->
-                    <div class="chart-container">
-                        <div class="chart-title">Error Rate Over Time</div>
-                        <div class="chart-canvas">
-                            <canvas id="errorRateChart"></canvas>
-                        </div>
-                    </div>
-                    
-                    <!-- Chart 4: Hits/Second Over Time -->
-                    <div class="chart-container">
-                        <div class="chart-title">Hits/Second Over Time</div>
-                        <div class="chart-canvas">
-                            <canvas id="hitsPerSecondChart"></canvas>
-                        </div>
-                    </div>
-                    
-                    <!-- Chart 5: Response Times vs Over Time -->
-                    <div class="chart-container">
-                        <div class="chart-title">Response Times vs Over Time</div>
-                        <div class="chart-canvas">
-                            <canvas id="responseTimesOverTimeChart"></canvas>
-                        </div>
-                    </div>
-                    
-                    <!-- Chart 6: TPS vs Over Time -->
-                    <div class="chart-container">
-                        <div class="chart-title">TPS vs Over Time</div>
-                        <div class="chart-canvas">
-                            <canvas id="tpsOverTimeChart"></canvas>
-                        </div>
-                    </div>
-                    
-                    <!-- Chart 7: Errors vs Response Time -->
-                    <div class="chart-container">
-                        <div class="chart-title">Errors vs Response Time</div>
-                        <div class="chart-canvas">
-                            <canvas id="errorsVsResponseTimeChart"></canvas>
-                        </div>
-                    </div>
-                    
-                    <!-- Chart 8: Throughput vs Response Time -->
-                    <div class="chart-container">
-                        <div class="chart-title">Throughput vs Response Time</div>
-                        <div class="chart-canvas">
-                            <canvas id="throughputVsResponseTimeChart"></canvas>
-                        </div>
-                    </div>
-                    
-                    <!-- Chart 9: Users vs Response Time -->
-                    <div class="chart-container">
-                        <div class="chart-title">Users vs Response Time</div>
-                        <div class="chart-canvas">
-                            <canvas id="usersVsResponseTimeChart"></canvas>
-                        </div>
-                    </div>
-                    
-                    <!-- Chart 10: Errors vs Users -->
-                    <div class="chart-container">
-                        <div class="chart-title">Errors vs Users</div>
-                        <div class="chart-canvas">
-                            <canvas id="errorsVsUsersChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Error Report Tab -->
-            <div id="errors" class="tab-content">
-                <div class="header">
-                    <h2>Error Report</h2>
-                    <p>${data.errorSamples.length} error${data.errorSamples.length !== 1 ? 's' : ''} found during test execution</p>
-                </div>
-                
-                <div class="card">
-                    <div class="card-header">
-                        <h3>Failed Requests Analysis</h3>
-                    </div>
-                    <div class="card-content">
-                        ${data.errorSamples.length === 0 ? `
-                            <div style="text-align: center; padding: 3rem; color: #10b981;">
-                                <div style="font-size: 3rem; margin-bottom: 1rem;">✓</div>
-                                <h3 style="color: #10b981; margin-bottom: 0.5rem;">No Errors Found</h3>
-                                <p style="color: #64748b;">All requests completed successfully!</p>
-                            </div>
-                        ` : `
-                            <div class="table-container">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Timestamp</th>
-                                            <th>Transaction</th>
-                                            <th>Response Time</th>
-                                            <th>Thread/User</th>
-                                            <th>Error Message</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        ${data.errorSamples.map(error => `
-                                            <tr>
-                                                <td>${new Date(error.timestamp).toLocaleString()}</td>
-                                                <td>${error.label}</td>
-                                                <td>${error.responseTime.toFixed(0)}ms</td>
-                                                <td>${error.threadName}</td>
-                                                <td style="max-width: 300px; word-wrap: break-word;">${error.responseMessage || 'Unknown error'}</td>
-                                            </tr>
-                                        `).join('')}
-                                    </tbody>
-                                </table>
-                            </div>
-                            ${data.errorSamples.length === 50 ? `
-                                <div style="margin-top: 1rem; padding: 1rem; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; color: #92400e;">
-                                    <strong>Note:</strong> Only the first 50 errors are shown. There may be additional errors in the complete dataset.
-                                </div>
-                            ` : ''}
-                        `}
-                    </div>
-                </div>
-            </div>
-            
-            ${comparisonData ? `
-            <!-- Comparison Tab -->
-            <div id="comparison" class="tab-content">
-                <div class="header">
-                    <h2>Performance Comparison</h2>
-                    <p>Side-by-side comparison of current vs previous test results</p>
-                </div>
-                
-                <!-- Comparison Summary -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3>Test Comparison Summary</h3>
-                    </div>
-                    <div class="card-content">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div class="bg-blue-50 p-4 rounded-lg">
-                                <h4 class="font-semibold text-blue-900 mb-2">Current Test</h4>
-                                <p class="text-sm font-medium text-blue-800">${comparisonData.fileName}</p>
-                                <div class="text-xs text-blue-600 mt-2 space-y-1">
-                                    <p>Requests: ${comparisonData.current.summary.totalRequests.toLocaleString()}</p>
-                                    <p>Duration: ${comparisonData.current.summary.testDuration}s</p>
-                                    <p>Avg Response: ${comparisonData.current.summary.avgResponseTime.toFixed(0)}ms</p>
-                                    <p>Error Rate: ${comparisonData.current.summary.errorRate.toFixed(2)}%</p>
-                                </div>
-                            </div>
-                            <div class="bg-orange-50 p-4 rounded-lg">
-                                <h4 class="font-semibold text-orange-900 mb-2">Previous Test</h4>
-                                <p class="text-sm font-medium text-orange-800">${comparisonData.previousFileName}</p>
-                                <div class="text-xs text-orange-600 mt-2 space-y-1">
-                                    <p>Requests: ${comparisonData.previous.summary.totalRequests.toLocaleString()}</p>
-                                    <p>Duration: ${comparisonData.previous.summary.testDuration}s</p>
-                                    <p>Avg Response: ${comparisonData.previous.summary.avgResponseTime.toFixed(0)}ms</p>
-                                    <p>Error Rate: ${comparisonData.previous.summary.errorRate.toFixed(2)}%</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Detailed Comparison Table -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3>Transaction Comparison</h3>
-                    </div>
-                    <div class="card-content">
-                        <div class="table-container">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Transaction</th>
-                                        <th>Avg Response Time</th>
-                                        <th>Change</th>
-                                        <th>Throughput</th>
-                                        <th>Change</th>
-                                        <th>Error Rate</th>
-                                        <th>Change</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${(() => {
-                                        // Generate comparison data
-                                        const currentTransactions = new Map(comparisonData.current.transactions.map(t => [t.label, t]));
-                                        const previousTransactions = new Map(comparisonData.previous.transactions.map(t => [t.label, t]));
-                                        const commonLabels = [...currentTransactions.keys()].filter(label => previousTransactions.has(label));
-                                        
-                                        return commonLabels.map((label, index) => {
-                                            const current = currentTransactions.get(label)!;
-                                            const previous = previousTransactions.get(label)!;
-                                            
-                                            const avgRTChange = ((current.avgResponseTime - previous.avgResponseTime) / previous.avgResponseTime) * 100;
-                                            const throughputChange = ((current.throughput - previous.throughput) / previous.throughput) * 100;
-                                            const errorRateChange = ((current.errorRate - previous.errorRate) / previous.errorRate) * 100;
-                                            
-                                            const getChangeColor = (change, isInverse = false) => {
-                                                const threshold = 5;
-                                                const isImprovement = isInverse ? change < -threshold : change > threshold;
-                                                const isRegression = isInverse ? change > threshold : change < -threshold;
-                                                
-                                                if (isImprovement) return 'color: #059669; background: #ecfdf5;';
-                                                if (isRegression) return 'color: #dc2626; background: #fef2f2;';
-                                                return 'color: #6b7280; background: #f9fafb;';
-                                            };
-                                            
-                                            const getChangeIcon = (change, isInverse = false) => {
-                                                const threshold = 5;
-                                                const isImprovement = isInverse ? change < -threshold : change > threshold;
-                                                const isRegression = isInverse ? change > threshold : change < -threshold;
-                                                
-                                                if (isImprovement) return '↑';
-                                                if (isRegression) return '↓';
-                                                return '→';
-                                            };
-                                            
-                                            const getStatus = () => {
-                                                let improvements = 0;
-                                                let regressions = 0;
-                                                
-                                                if (avgRTChange <= -5) improvements++;
-                                                else if (avgRTChange >= 5) regressions++;
-                                                
-                                                if (throughputChange >= 5) improvements++;
-                                                else if (throughputChange <= -5) regressions++;
-                                                
-                                                if (errorRateChange <= -5) improvements++;
-                                                else if (errorRateChange >= 5) regressions++;
-                                                
-                                                if (improvements > regressions) return { status: 'Improved', color: '#059669' };
-                                                if (regressions > improvements) return { status: 'Regressed', color: '#dc2626' };
-                                                return { status: 'Neutral', color: '#6b7280' };
-                                            };
-                                            
-                                            const status = getStatus();
-                                            
-                                            return `
-                                                <tr style="${index % 2 === 0 ? 'background: white;' : 'background: #f9fafb;'}">
-                                                    <td style="font-weight: 600;">${label}</td>
-                                                    <td>
-                                                        <div>${current.avgResponseTime.toFixed(0)}ms</div>
-                                                        <div style="font-size: 0.75rem; color: #6b7280;">vs ${previous.avgResponseTime.toFixed(0)}ms</div>
-                                                    </td>
-                                                    <td>
-                                                        <span style="padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; ${getChangeColor(avgRTChange, true)}">
-                                                            ${getChangeIcon(avgRTChange, true)} ${avgRTChange.toFixed(1)}%
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <div>${current.throughput.toFixed(2)}/s</div>
-                                                        <div style="font-size: 0.75rem; color: #6b7280;">vs ${previous.throughput.toFixed(2)}/s</div>
-                                                    </td>
-                                                    <td>
-                                                        <span style="padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; ${getChangeColor(throughputChange)}">
-                                                            ${getChangeIcon(throughputChange)} ${throughputChange.toFixed(1)}%
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <div>${current.errorRate.toFixed(2)}%</div>
-                                                        <div style="font-size: 0.75rem; color: #6b7280;">vs ${previous.errorRate.toFixed(2)}%</div>
-                                                    </td>
-                                                    <td>
-                                                        <span style="padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; ${getChangeColor(errorRateChange, true)}">
-                                                            ${getChangeIcon(errorRateChange, true)} ${errorRateChange.toFixed(1)}%
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <span style="color: ${status.color}; font-weight: 600;">${status.status}</span>
-                                                    </td>
-                                                </tr>
-                                            `;
-                                        }).join('');
-                                    })()}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            ` : ''}
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('dashboard')">Dashboard</button>
+            <button class="tab" onclick="showTab('graphs')">Graphs</button>
+            <button class="tab" onclick="showTab('errors')">Error Report</button>
+            ${comparison ? '<button class="tab" onclick="showTab(\'comparison\')">Comparison</button>' : ''}
         </div>
+        
+        ${generateDashboardTab()}
+        ${generateGraphsTab()}
+        ${generateErrorsTab()}
+        ${comparison ? generateComparisonTab(comparison) : ''}
     </div>
     
     <script>
-        // Tab switching functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            const tabButtons = document.querySelectorAll('.tab-btn');
+        function showTab(tabName) {
+            // Hide all tab contents
             const tabContents = document.querySelectorAll('.tab-content');
-            let chartsInitialized = false;
+            tabContents.forEach(content => content.classList.remove('active'));
             
-            tabButtons.forEach(button => {
-                button.addEventListener('click', function() {
-                    const targetTab = this.getAttribute('data-tab');
-                    
-                    // Remove active class from all buttons and contents
-                    tabButtons.forEach(btn => btn.classList.remove('active'));
-                    tabContents.forEach(content => content.classList.remove('active'));
-                    
-                    // Add active class to clicked button and corresponding content
-                    this.classList.add('active');
-                    document.getElementById(targetTab).classList.add('active');
-                    
-                    // Initialize charts when graphs tab is first opened
-                    if (targetTab === 'graphs' && !chartsInitialized) {
-                        initializeCharts();
-                        chartsInitialized = true;
-                    }
-                });
-            });
+            // Remove active class from all tabs
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => tab.classList.remove('active'));
             
-            function initializeCharts() {
-                // Chart 1: Average Response Times Over Time
-                const avgResponseTimesCtx = document.getElementById('avgResponseTimesChart').getContext('2d');
-                new Chart(avgResponseTimesCtx, {
-                    type: 'line',
-                    data: {
-                        datasets: [{
-                            label: 'Average Response Time',
-                            data: ${JSON.stringify(data.chartData.responseTimesOverTime)},
-                            borderColor: 'rgb(59, 130, 246)',
-                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                            fill: true,
-                            tension: 0.1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            x: {
-                                type: 'time',
-                                time: {
-                                    displayFormats: {
-                                        millisecond: 'HH:mm:ss.SSS',
-                                        second: 'HH:mm:ss',
-                                        minute: 'HH:mm',
-                                        hour: 'HH:mm'
-                                    }
-                                }
-                            },
-                            y: {
-                                title: {
-                                    display: true,
-                                    text: 'Response Time (ms)'
-                                }
-                            }
-                        }
-                    }
-                });
-                
-                // Chart 2: Throughput Over Time
-                const throughputCtx = document.getElementById('throughputChart').getContext('2d');
-                new Chart(throughputCtx, {
-                    type: 'line',
-                    data: {
-                        datasets: [{
-                            label: 'Throughput',
-                            data: ${JSON.stringify(data.chartData.tpsOverTime)},
-                            borderColor: 'rgb(34, 197, 94)',
-                            backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                            fill: true,
-                            tension: 0.1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            x: {
-                                type: 'time',
-                                time: {
-                                    displayFormats: {
-                                        millisecond: 'HH:mm:ss.SSS',
-                                        second: 'HH:mm:ss',
-                                        minute: 'HH:mm',
-                                        hour: 'HH:mm'
-                                    }
-                                }
-                            },
-                            y: {
-                                title: {
-                                    display: true,
-                                    text: 'Requests/sec'
-                                }
-                            }
-                        }
-                    }
-                });
-                
-                // Chart 3: Error Rate Over Time
-                const errorRateCtx = document.getElementById('errorRateChart').getContext('2d');
-                new Chart(errorRateCtx, {
-                    type: 'line',
-                    data: {
-                        datasets: [{
-                            label: 'Error Rate',
-                            data: ${JSON.stringify(extendedChartData.errorRateOverTime)},
-                            borderColor: 'rgb(239, 68, 68)',
-                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                            fill: true,
-                            tension: 0.1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            x: {
-                                type: 'time',
-                                time: {
-                                    displayFormats: {
-                                        millisecond: 'HH:mm:ss.SSS',
-                                        second: 'HH:mm:ss',
-                                        minute: 'HH:mm',
-                                        hour: 'HH:mm'
-                                    }
-                                }
-                            },
-                            y: {
-                                title: {
-                                    display: true,
-                                    text: 'Error Rate (%)'
-                                }
-                            }
-                        }
-                    }
-                });
-                
-                // Chart 4: Hits/Second Over Time
-                const hitsPerSecondCtx = document.getElementById('hitsPerSecondChart').getContext('2d');
-                new Chart(hitsPerSecondCtx, {
-                    type: 'bar',
-                    data: {
-                        datasets: [{
-                            label: 'Hits/Second',
-                            data: ${JSON.stringify(extendedChartData.hitsPerSecond)},
-                            backgroundColor: 'rgba(245, 158, 11, 0.8)',
-                            borderColor: 'rgb(245, 158, 11)',
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            x: {
-                                type: 'time',
-                                time: {
-                                    displayFormats: {
-                                        millisecond: 'HH:mm:ss.SSS',
-                                        second: 'HH:mm:ss',
-                                        minute: 'HH:mm',
-                                        hour: 'HH:mm'
-                                    }
-                                }
-                            },
-                            y: {
-                                title: {
-                                    display: true,
-                                    text: 'Hits/sec'
-                                }
-                            }
-                        }
-                    }
-                });
-                
-                // Chart 5: Response Times vs Over Time (Multi-line by transaction)
-                const responseTimesOverTimeCtx = document.getElementById('responseTimesOverTimeChart').getContext('2d');
-                const groupedData = ${JSON.stringify(data.chartData.responseTimesOverTime)}.reduce((acc, point) => {
-                    if (!acc[point.label]) {
-                        acc[point.label] = [];
-                    }
-                    acc[point.label].push({ x: point.x, y: point.y });
-                    return acc;
-                }, {});
-                
-                // Sort each group by x value for proper line connections
-                const datasets = Object.entries(groupedData).map(([label, points], index) => ({
-                    label,
-                    data: points.sort((a, b) => a.x - b.x),
-                    borderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 50%)\`,
-                    backgroundColor: \`hsl(\${(index * 137.5) % 360}, 70%, 90%)\`,
-                    borderWidth: 2,
-                    fill: false,
-                    tension: 0.1
-                }));
-                
-                new Chart(responseTimesOverTimeCtx, {
-                    type: 'line',
-                    data: { datasets },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            x: {
-                                type: 'time',
-                                time: {
-                                    displayFormats: {
-                                        millisecond: 'HH:mm:ss.SSS',
-                                        second: 'HH:mm:ss',
-                                        minute: 'HH:mm',
-                                        hour: 'HH:mm'
-                                    }
-                                }
-                            },
-                            y: {
-                                title: {
-                                    display: true,
-                                    text: 'Response Time (ms)'
-                                }
-                            }
-                        }
-                    }
-                });
-                
-                // Chart 6: TPS vs Over Time (Bar)
-                const tpsOverTimeCtx = document.getElementById('tpsOverTimeChart').getContext('2d');
-                new Chart(tpsOverTimeCtx, {
-                    type: 'bar',
-                    data: {
-                        datasets: [{
-                            label: 'TPS',
-                            data: ${JSON.stringify(data.chartData.tpsOverTime)},
-                            backgroundColor: 'rgba(168, 85, 247, 0.8)',
-                            borderColor: 'rgb(168, 85, 247)',
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            x: {
-                                type: 'time',
-                                time: {
-                                    displayFormats: {
-                                        millisecond: 'HH:mm:ss.SSS',
-                                        second: 'HH:mm:ss',
-                                        minute: 'HH:mm',
-                                        hour: 'HH:mm'
-                                    }
-                                }
-                            },
-                            y: {
-                                title: {
-                                    display: true,
-                                    text: 'Transactions/sec'
-                                }
-                            }
-                        }
-                    }
-                });
-                
-                // Chart 7: Errors vs Response Time
-                const errorsVsResponseTimeCtx = document.getElementById('errorsVsResponseTimeChart').getContext('2d');
-                new Chart(errorsVsResponseTimeCtx, {
-                    type: 'scatter',
-                    data: {
-                        datasets: [{
-                            label: 'Errors',
-                            data: ${JSON.stringify(extendedChartData.errorsVsResponseTime)},
-                            backgroundColor: 'rgba(239, 68, 68, 0.6)',
-                            borderColor: 'rgb(239, 68, 68)'
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            x: {
-                                title: {
-                                    display: true,
-                                    text: 'Response Time (ms)'
-                                }
-                            },
-                            y: {
-                                title: {
-                                    display: true,
-                                    text: 'Error Count'
-                                }
-                            }
-                        }
-                    }
-                });
-                
-                // Chart 8: Throughput vs Response Time
-                const throughputVsResponseTimeCtx = document.getElementById('throughputVsResponseTimeChart').getContext('2d');
-                
-                // Group data by label for line charts
-                const groupedData = ${JSON.stringify(data.chartData.throughputVsResponseTime)}.reduce((acc, point) => {
-                  if (!acc[point.label]) {
-                    acc[point.label] = [];
-                  }
-                  acc[point.label].push({ x: point.x, y: point.y });
-                  return acc;
-                }, {});
-
-                // Sort each group by x value for proper line connections
-                const datasets = Object.entries(groupedData).map(([label, points], index) => ({
-                  label: label,
-                  data: points.sort((a, b) => a.x - b.x),
-                  backgroundColor: \`hsla(\${(index * 137.5) % 360}, 70%, 50%, 0.6)\`,
-                  borderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 40%)\`,
-                  borderWidth: 2,
-                  fill: false,
-                  tension: 0.1,
-                  pointRadius: 4,
-                  pointHoverRadius: 6,
-                  pointBackgroundColor: \`hsl(\${(index * 137.5) % 360}, 70%, 50%)\`,
-                  pointBorderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 30%)\`,
-                  pointBorderWidth: 1,
-                  showLine: true,
-                }));
-
-                const config = {
-                  type: 'line',
-                  data: { datasets: datasets },
-                  options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: {
-                      intersect: false,
-                      mode: 'index'
-                    },
-                    scales: {
-                      x: {
-                        title: {
-                          display: true,
-                          text: 'Throughput (req/s)'
-                        }
-                      },
-                      y: {
-                        title: {
-                          display: true,
-                          text: 'Response Time (ms)'
-                        }
-                      }
-                    },
-                    plugins: {
-                      title: {
-                        display: true,
-                        text: 'Throughput vs Response Time'
-                      },
-                      legend: {
-                        display: true,
-                        position: 'top'
-                      },
-                      tooltip: {
-                        callbacks: {
-                          title: function(context) {
-                            return context[0].dataset.label || '';
-                          },
-                          label: function(context) {
-                            return \`Throughput: \${context.parsed.x.toFixed(2)} req/s, Response Time: \${context.parsed.y.toFixed(0)} ms\`;
-                          }
-                        }
-                      }
-                    }
-                  }
-                };
-                
-                new Chart(throughputVsResponseTimeCtx, config);
-                
-                // Chart 9: Users vs Response Time
-                const usersVsResponseTimeCtx = document.getElementById('usersVsResponseTimeChart').getContext('2d');
-                new Chart(usersVsResponseTimeCtx, {
-                    type: 'scatter',
-                    data: {
-                        datasets: [{
-                            label: 'Users',
-                            data: ${JSON.stringify(extendedChartData.usersVsResponseTime)},
-                            backgroundColor: 'rgba(59, 130, 246, 0.6)',
-                            borderColor: 'rgb(59, 130, 246)'
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            x: {
-                                title: {
-                                    display: true,
-                                    text: 'Users'
-                                }
-                            },
-                            y: {
-                                title: {
-                                    display: true,
-                                    text: 'Response Time (ms)'
-                                }
-                            }
-                        }
-                    }
-                });
-                
-                // Chart 10: Errors vs Users
-                const errorsVsUsersCtx = document.getElementById('errorsVsUsersChart').getContext('2d');
-                new Chart(errorsVsUsersCtx, {
-                    type: 'scatter',
-                    data: {
-                        datasets: [{
-                            label: 'Errors',
-                            data: ${JSON.stringify(extendedChartData.errorsVsUsers)},
-                            backgroundColor: 'rgba(239, 68, 68, 0.6)',
-                            borderColor: 'rgb(239, 68, 68)'
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            x: {
-                                title: {
-                                    display: true,
-                                    text: 'Users'
-                                }
-                            },
-                            y: {
-                                title: {
-                                    display: true,
-                                    text: 'Error Count'
-                                }
-                            }
-                        }
-                    }
-                });
-            }
-        });
+            // Show selected tab content
+            document.getElementById(tabName).classList.add('active');
+            
+            // Add active class to clicked tab
+            event.target.classList.add('active');
+        }
     </script>
+    
+    ${generateChartScripts()}
 </body>
-</html>`;
+</html>
+  `;
 };
