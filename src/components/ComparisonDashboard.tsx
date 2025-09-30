@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { ArrowUp, ArrowDown, Minus, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, FileText, RefreshCcw } from 'lucide-react';
+import { ArrowUp, ArrowDown, Minus, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, FileText, RefreshCcw, Download } from 'lucide-react';
 import { ComparisonResult, ComparisonMetrics } from '../types/jmeter';
+import { generateHTMLReport } from '../utils/reportGenerator';
 
 interface ComparisonDashboardProps {
   comparisonResult: ComparisonResult;
@@ -13,6 +14,27 @@ type SortDirection = 'asc' | 'desc';
 const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ comparisonResult, onReset }) => {
   const [sortField, setSortField] = useState<SortField>('currentCount');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+  const handleDownloadComparisonReport = () => {
+    const htmlReport = generateHTMLReport(
+      comparisonResult.currentTest.summary as any, // We'll need to reconstruct full data
+      {
+        current: comparisonResult.currentTest.summary as any,
+        previous: comparisonResult.previousTest.summary as any,
+        fileName: comparisonResult.currentTest.fileName,
+        previousFileName: comparisonResult.previousTest.fileName
+      }
+    );
+    const blob = new Blob([htmlReport], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `jmeter-comparison-report-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -101,13 +123,22 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ comparisonRes
             <h2 className="text-2xl font-bold text-gray-900">Performance Comparison</h2>
           </div>
         </div>
-        <button
-          onClick={onReset}
-          className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
-        >
-          <RefreshCcw className="h-4 w-4 mr-2" />
-          New Comparison
-        </button>
+        <div className="flex space-x-3">
+          <button
+            onClick={handleDownloadComparisonReport}
+            className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Download HTML Report
+          </button>
+          <button
+            onClick={onReset}
+            className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+          >
+            <RefreshCcw className="h-4 w-4 mr-2" />
+            New Comparison
+          </button>
+        </div>
       </div>
 
       {/* Overall Status Card */}
