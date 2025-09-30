@@ -27,15 +27,15 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ comparisonRes
     let aValue: number | string;
     let bValue: number | string;
 
-    if (field === 'label') {
+    if (sortField === 'label') {
       aValue = a.label;
       bValue = b.label;
-    } else if (field === 'currentCount') {
+    } else if (sortField === 'currentCount') {
       aValue = a.current.count;
       bValue = b.current.count;
     } else {
-      aValue = a.changes[field];
-      bValue = b.changes[field];
+      aValue = a.changes[sortField];
+      bValue = b.changes[sortField];
     }
 
     const multiplier = sortDirection === 'asc' ? 1 : -1;
