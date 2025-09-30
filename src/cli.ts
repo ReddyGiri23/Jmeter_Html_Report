@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { resolve, basename, extname } from 'path';
 import { parseJMeterFile } from './utils/jmeterParser';
 import { generateHTMLReport } from './utils/reportGenerator';
@@ -85,20 +85,32 @@ const main = async () => {
     const inputPath = resolve(options.input);
     const outputPath = generateOutputPath(inputPath, options.output);
     
+    // Check if input file exists
+    if (!existsSync(inputPath)) {
+      console.error(`❌ Error: Input file not found: ${inputPath}`);
+      console.error('Please check the file path and try again.');
+      process.exit(1);
+    }
+    
     console.log('🚀 JMeter HTML Report Generator');
     console.log(`📁 Input file: ${inputPath}`);
     console.log(`📄 Output file: ${outputPath}`);
     console.log('');
     
-    // Check if input file exists
     console.log('📖 Reading JTL file...');
     const fileContent = readFileSync(inputPath, 'utf-8');
+    
+    if (!fileContent || fileContent.trim().length === 0) {
+      console.error('❌ Error: Input file is empty');
+      process.exit(1);
+    }
     
     // Create a File-like object for the parser
     const file = {
       name: basename(inputPath),
       size: fileContent.length,
-      text: async () => fileContent
+      text: async () => fileContent,
+      type: inputPath.endsWith('.xml') || inputPath.endsWith('.jtl') ? 'text/xml' : 'text/csv'
     } as File;
     
     console.log('⚙️  Processing JMeter data...');
@@ -129,7 +141,7 @@ const main = async () => {
     console.error('❌ Error generating report:');
     
     if (error instanceof Error) {
-      if (error.message.includes('ENOENT')) {
+      if (error.message.includes('ENOENT') || error.message.includes('no such file')) {
         console.error(`   File not found: ${options.input}`);
         console.error('   Please check the file path and try again.');
       } else if (error.message.includes('No valid samples')) {
@@ -138,6 +150,9 @@ const main = async () => {
       } else if (error.message.includes('XML parsing failed')) {
         console.error('   Invalid XML format in JTL file.');
         console.error('   Please ensure the file is a valid JMeter results file.');
+      } else if (error.message.includes('Cannot find package')) {
+        console.error('   Missing required dependencies.');
+        console.error('   Please run: npm install');
       } else {
         console.error(`   ${error.message}`);
       }
@@ -150,6 +165,7 @@ const main = async () => {
     console.error('   • Ensure the file is a valid JMeter .jtl or .csv file');
     console.error('   • Check that the file contains the required columns: timeStamp, elapsed, label, success');
     console.error('   • Verify file permissions and path');
+    console.error('   • Run "npm install" to ensure all dependencies are installed');
     console.error('');
     
     process.exit(1);

@@ -12,17 +12,18 @@
     "generate-report": "npx tsx src/cli.ts"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.57.4",
     "@types/lodash": "^4.17.20",
+    "@types/papaparse": "^5.3.14",
     "chart.js": "^4.5.0",
     "chartjs-adapter-date-fns": "^3.0.0",
     "date-fns": "^4.1.0",
     "lodash": "^4.17.21",
     "lucide-react": "^0.344.0",
-    "papaparse": "^5.5.3",
+    "papaparse": "^5.4.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "simple-statistics": "^7.8.8"
+    "simple-statistics": "^7.8.8",
+    "@supabase/supabase-js": "^2.57.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
