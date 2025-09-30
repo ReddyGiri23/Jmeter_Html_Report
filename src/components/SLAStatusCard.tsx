@@ -33,15 +33,15 @@ const SLAStatusCard: React.FC<SLAStatusCardProps> = ({ slaResults }) => {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className={`p-4 rounded-lg border-2 ${
-          slaResults.p95ResponseTime.passed ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'
+          slaResults.avgResponseTime.passed ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'
         }`}>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700">95th Percentile Response Time</span>
-            <StatusIcon passed={slaResults.p95ResponseTime.passed} />
+            <span className="text-sm font-medium text-gray-700">Average Response Time</span>
+            <StatusIcon passed={slaResults.avgResponseTime.passed} />
           </div>
           <div className="space-y-1">
-            <p className="text-2xl font-bold text-gray-900">{slaResults.p95ResponseTime.value.toFixed(0)} ms</p>
-            <p className="text-sm text-gray-600">Threshold: ≤ {slaResults.p95ResponseTime.threshold} ms</p>
+            <p className="text-2xl font-bold text-gray-900">{slaResults.avgResponseTime.value.toFixed(0)} ms</p>
+            <p className="text-sm text-gray-600">Threshold: ≤ {slaResults.avgResponseTime.threshold} ms</p>
           </div>
         </div>
 
@@ -54,7 +54,7 @@ const SLAStatusCard: React.FC<SLAStatusCardProps> = ({ slaResults }) => {
           </div>
           <div className="space-y-1">
             <p className="text-2xl font-bold text-gray-900">{slaResults.averageThroughput.value.toFixed(2)} req/s</p>
-            <p className="text-sm text-gray-600">Threshold: ≥ {slaResults.averageThroughput.threshold} req/s</p>
+            <p className="text-sm text-gray-600">Threshold: ≥ {(slaResults.averageThroughput.threshold * 3600).toFixed(0)} TPH</p>
           </div>
         </div>
 

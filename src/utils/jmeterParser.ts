@@ -1,7 +1,7 @@
 import Papa from 'papaparse';
 import _ from 'lodash';
 import * as ss from 'simple-statistics';
-import { JMeterSample, JMeterData, TestSummary, TransactionMetrics, SLAResult, ErrorSample, ChartData } from '../types/jmeter';
+import { JMeterSample, JMeterData, TestSummary, TransactionMetrics, SLAResult, ErrorSample, ChartData, ReportGenerationOptions } from '../types/jmeter';
 
 // Enhanced logging for debugging
 const DEBUG = false;
@@ -181,7 +181,7 @@ const parseXML = (text: string, DOMParserClass?: any): JMeterSample[] => {
 };
 
 // Enhanced test summary generation with precise calculations
-const generateTestSummary = (samples: JMeterSample[]): TestSummary => {
+const generateTestSummary = (samples: JMeterSample[], options?: ReportGenerationOptions): TestSummary => {
   log('Generating test summary...');
   
   if (samples.length === 0) {
@@ -219,8 +219,8 @@ const generateTestSummary = (samples: JMeterSample[]): TestSummary => {
   const errorRate = (totalErrors / totalRequests) * 100;
 
   const summary: TestSummary = {
-    applicationVersion: 'v1.0.0', // Can be extracted from test plan if available
-    testEnvironment: 'Test Environment',
+    applicationVersion: 'v1.0.0',
+    testEnvironment: options?.testConfig?.testEnvironment || 'PPE02',
     testDuration: durationSeconds,
     virtualUsers: maxThreads,
     totalRequests,
@@ -294,25 +294,25 @@ const generateTransactionMetrics = (samples: JMeterSample[]): TransactionMetrics
 };
 
 // Enhanced SLA evaluation with configurable thresholds
-const evaluateSLAs = (summary: TestSummary, transactions: TransactionMetrics[]): SLAResult => {
+const evaluateSLAs = (summary: TestSummary, transactions: TransactionMetrics[], options?: ReportGenerationOptions): SLAResult => {
   log('Evaluating SLA gates...');
   
   // Configurable SLA thresholds
   const SLA_THRESHOLDS = {
-    p95ResponseTime: 4000, // ms
-    throughput: 2, // req/s
-    errorRate: 10 // %
+    avgResponseTime: options?.slaThresholds?.avgResponseTime || 3000, // ms (3 seconds)
+    throughput: options?.slaThresholds?.throughput || 0.03055, // req/s (110 TPH = 110/3600)
+    errorRate: options?.slaThresholds?.errorRate || 10 // %
   };
 
-  const p95Passed = summary.p95ResponseTime <= SLA_THRESHOLDS.p95ResponseTime;
+  const avgResponseTimePassed = summary.avgResponseTime <= SLA_THRESHOLDS.avgResponseTime;
   const throughputPassed = summary.overallThroughput >= SLA_THRESHOLDS.throughput;
   const errorRatePassed = summary.errorRate <= SLA_THRESHOLDS.errorRate;
   
   const slaResult: SLAResult = {
-    p95ResponseTime: {
-      value: summary.p95ResponseTime,
-      threshold: SLA_THRESHOLDS.p95ResponseTime,
-      passed: p95Passed
+    avgResponseTime: {
+      value: summary.avgResponseTime,
+      threshold: SLA_THRESHOLDS.avgResponseTime,
+      passed: avgResponseTimePassed
     },
     averageThroughput: {
       value: summary.overallThroughput,
@@ -324,7 +324,7 @@ const evaluateSLAs = (summary: TestSummary, transactions: TransactionMetrics[]):
       threshold: SLA_THRESHOLDS.errorRate,
       passed: errorRatePassed
     },
-    overallPassed: p95Passed && throughputPassed && errorRatePassed
+    overallPassed: avgResponseTimePassed && throughputPassed && errorRatePassed
   };
 
   log('SLA evaluation results:', slaResult);
@@ -332,12 +332,14 @@ const evaluateSLAs = (summary: TestSummary, transactions: TransactionMetrics[]):
 };
 
 // Enhanced error sample extraction
-const getErrorSamples = (samples: JMeterSample[]): ErrorSample[] => {
+const getErrorSamples = (samples: JMeterSample[], options?: ReportGenerationOptions): ErrorSample[] => {
   log('Extracting error samples...');
+  
+  const maxErrorSamples = options?.reportOptions?.maxErrorSamples || 200;
   
   const errorSamples = samples
     .filter(sample => !sample.success)
-    .slice(0, 50) // Limit to first 50 errors
+    .slice(0, maxErrorSamples) // Limit to configured number of errors
     .map(sample => ({
       timestamp: sample.timeStamp,
       label: sample.label,
@@ -369,12 +371,14 @@ const calculateErrorCountsByStatusCode = (samples: JMeterSample[]): Record<strin
 };
 
 // Enhanced chart data generation with time-based aggregation
-const generateChartData = (samples: JMeterSample[], transactions: TransactionMetrics[]): ChartData => {
+const generateChartData = (samples: JMeterSample[], transactions: TransactionMetrics[], options?: ReportGenerationOptions): ChartData => {
   log('Generating chart data...');
+  
+  const samplingRate = options?.reportOptions?.samplingRate || 2;
   
   // Response Times Over Time - sample every few seconds to avoid overcrowding
   const responseTimesOverTime = samples
-    .filter((_, index) => index % Math.max(1, Math.floor(samples.length / 1000)) === 0) // Sample data points
+    .filter((_, index) => index % Math.max(1, samplingRate) === 0) // Use configured sampling rate
     .map(sample => ({
       x: sample.timeStamp,
       y: sample.elapsed,
@@ -481,7 +485,7 @@ const generateChartData = (samples: JMeterSample[], transactions: TransactionMet
 
   // Users vs Response Time - sample data to avoid overcrowding
   const usersVsResponseTime = samples
-    .filter((_, index) => index % Math.max(1, Math.floor(samples.length / 500)) === 0) // Sample data points
+    .filter((_, index) => index % Math.max(1, samplingRate * 250) === 0) // Use configured sampling rate
     .filter(sample => sample.allThreads > 0) // Only include samples with valid thread count
     .map(sample => ({
       x: sample.allThreads,
@@ -534,7 +538,7 @@ const generateChartData = (samples: JMeterSample[], transactions: TransactionMet
 };
 
 // Main parsing function with enhanced error handling
-export const parseJMeterFile = async (file: File, DOMParserClass?: any): Promise<JMeterData> => {
+export const parseJMeterFile = async (file: File, DOMParserClass?: any, options?: ReportGenerationOptions): Promise<JMeterData> => {
   log(`Starting to parse file: ${file.name} (${file.size} bytes)`);
   
   try {
@@ -559,12 +563,12 @@ export const parseJMeterFile = async (file: File, DOMParserClass?: any): Promise
     log(`Successfully parsed ${samples.length} samples`);
 
     // Generate all metrics
-    const summary = generateTestSummary(samples);
+    const summary = generateTestSummary(samples, options);
     const transactions = generateTransactionMetrics(samples);
-    const slaResults = evaluateSLAs(summary, transactions);
-    const errorSamples = getErrorSamples(samples);
+    const slaResults = evaluateSLAs(summary, transactions, options);
+    const errorSamples = getErrorSamples(samples, options);
     const errorCountsByStatusCode = calculateErrorCountsByStatusCode(samples);
-    const chartData = generateChartData(samples, transactions);
+    const chartData = generateChartData(samples, transactions, options);
 
     const jmeterData: JMeterData = {
       samples,

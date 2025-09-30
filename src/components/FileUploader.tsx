@@ -11,7 +11,7 @@ interface FileUploaderProps {
 
 interface AdvancedSettings {
   slaThresholds: {
-    p95ResponseTime: number;
+    avgResponseTime: number;
     throughput: number;
     errorRate: number;
   };
@@ -19,6 +19,9 @@ interface AdvancedSettings {
     includeCharts: boolean;
     maxErrorSamples: number;
     samplingRate: number;
+  };
+  testConfig: {
+    testEnvironment: string;
   };
 }
 
@@ -34,14 +37,17 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   const [dragActive, setDragActive] = React.useState(false);
   const [settings, setSettings] = React.useState<AdvancedSettings>({
     slaThresholds: {
-      p95ResponseTime: 4000, // Smart default: 4 seconds
-      throughput: 2, // Smart default: 2 req/s
+      avgResponseTime: 3000, // Smart default: 3 seconds
+      throughput: 0.03055, // Smart default: 110 TPH = 110/3600 req/s
       errorRate: 10 // Smart default: 10%
     },
     reportOptions: {
       includeCharts: true, // Smart default: include charts
-      maxErrorSamples: 50, // Smart default: 50 errors
-      samplingRate: 1000 // Smart default: every 1000th sample for large files
+      maxErrorSamples: 200, // Smart default: 200 errors
+      samplingRate: 2 // Smart default: every 2nd sample
+    },
+    testConfig: {
+      testEnvironment: 'PPE02' // Smart default: PPE02 environment
     }
   });
 
@@ -58,14 +64,19 @@ const FileUploader: React.FC<FileUploaderProps> = ({
         ...prev,
         reportOptions: {
           ...prev.reportOptions,
-          samplingRate: 2000 // Increase sampling for large files
+          samplingRate: 10 // Increase sampling for large files
         }
       }));
     }
 
     setIsProcessing(true);
     try {
-      const data = await parseJMeterFile(file);
+      const reportOptions = {
+        slaThresholds: settings.slaThresholds,
+        reportOptions: settings.reportOptions,
+        testConfig: settings.testConfig
+      };
+      const data = await parseJMeterFile(file, undefined, reportOptions);
       onDataProcessed(data);
     } catch (error) {
       console.error('Error processing file:', error);
@@ -194,49 +205,49 @@ const FileUploader: React.FC<FileUploaderProps> = ({
               <h4 className="text-lg font-semibold text-gray-900 mb-3">SLA Thresholds</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label htmlFor="p95-threshold" className="block text-sm font-medium text-gray-700 mb-1">
-                    95th Percentile (ms)
+                  <label htmlFor="avg-response-time-threshold" className="block text-sm font-medium text-gray-700 mb-1">
+                    Avg Response Time (ms)
                   </label>
                   <input
-                    id="p95-threshold"
+                    id="avg-response-time-threshold"
                     type="number"
                     min="100"
                     max="30000"
-                    value={settings.slaThresholds.p95ResponseTime}
+                    value={settings.slaThresholds.avgResponseTime}
                     onChange={(e) => setSettings(prev => ({
                       ...prev,
                       slaThresholds: {
                         ...prev.slaThresholds,
-                        p95ResponseTime: parseInt(e.target.value) || 4000
+                        avgResponseTime: parseInt(e.target.value) || 3000
                       }
                     }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    placeholder="4000"
+                    placeholder="3000"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Recommended: 2000-5000ms</p>
+                  <p className="text-xs text-gray-500 mt-1">Recommended: 1000-5000ms</p>
                 </div>
                 <div>
                   <label htmlFor="throughput-threshold" className="block text-sm font-medium text-gray-700 mb-1">
-                    Min Throughput (req/s)
+                    Min Throughput (TPH)
                   </label>
                   <input
                     id="throughput-threshold"
                     type="number"
                     min="0.1"
-                    max="1000"
+                    max="10000"
                     step="0.1"
-                    value={settings.slaThresholds.throughput}
+                    value={(settings.slaThresholds.throughput * 3600).toFixed(1)}
                     onChange={(e) => setSettings(prev => ({
                       ...prev,
                       slaThresholds: {
                         ...prev.slaThresholds,
-                        throughput: parseFloat(e.target.value) || 2
+                        throughput: (parseFloat(e.target.value) || 110) / 3600
                       }
                     }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    placeholder="2.0"
+                    placeholder="110"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Minimum acceptable rate</p>
+                  <p className="text-xs text-gray-500 mt-1">Transactions per hour</p>
                 </div>
                 <div>
                   <label htmlFor="error-threshold" className="block text-sm font-medium text-gray-700 mb-1">
@@ -258,7 +269,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     placeholder="10"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Recommended: 5-15%</p>
+                  <p className="text-xs text-gray-500 mt-1">Recommended: 5-10%</p>
                 </div>
               </div>
             </div>
@@ -306,6 +317,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
                       <option value={50}>50 errors</option>
                       <option value={100}>100 errors</option>
                       <option value={200}>200 errors</option>
+                      <option value={500}>500 errors</option>
                     </select>
                   </div>
                   <div>
@@ -324,13 +336,36 @@ const FileUploader: React.FC<FileUploaderProps> = ({
                       }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     >
-                      <option value={500}>Every 500th sample</option>
-                      <option value={1000}>Every 1000th sample</option>
-                      <option value={2000}>Every 2000th sample</option>
-                      <option value={5000}>Every 5000th sample</option>
+                      <option value={1}>Every sample</option>
+                      <option value={2}>Every 2nd sample</option>
+                      <option value={5}>Every 5th sample</option>
+                      <option value={10}>Every 10th sample</option>
+                      <option value={50}>Every 50th sample</option>
                     </select>
                     <p className="text-xs text-gray-500 mt-1">Higher values = faster processing</p>
                   </div>
+                </div>
+                
+                {/* Test Configuration */}
+                <div>
+                  <label htmlFor="test-environment" className="block text-sm font-medium text-gray-700 mb-1">
+                    Test Environment
+                  </label>
+                  <input
+                    id="test-environment"
+                    type="text"
+                    value={settings.testConfig.testEnvironment}
+                    onChange={(e) => setSettings(prev => ({
+                      ...prev,
+                      testConfig: {
+                        ...prev.testConfig,
+                        testEnvironment: e.target.value || 'PPE02'
+                      }
+                    }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="PPE02"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Environment where test was executed</p>
                 </div>
               </div>
             </div>

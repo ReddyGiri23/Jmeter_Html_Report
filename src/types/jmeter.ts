@@ -40,7 +40,7 @@ export interface TestSummary {
 }
 
 export interface SLAResult {
-  p95ResponseTime: {
+  avgResponseTime: {
     value: number;
     threshold: number;
     passed: boolean;
@@ -129,5 +129,21 @@ export interface ComparisonResult {
     topImprovements: ComparisonMetrics[];
     topRegressions: ComparisonMetrics[];
     summary: string;
+  };
+}
+
+export interface ReportGenerationOptions {
+  slaThresholds: {
+    avgResponseTime: number;
+    throughput: number;
+    errorRate: number;
+  };
+  reportOptions: {
+    includeCharts: boolean;
+    maxErrorSamples: number;
+    samplingRate: number;
+  };
+  testConfig: {
+    testEnvironment: string;
   };
 }

@@ -127,13 +127,13 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResu
               ${data.slaResults.overallPassed ? '✅ All SLAs Passed' : '❌ SLA Violations'}
             </div>
             <div class="sla-details">
-              <div class="sla-item ${data.slaResults.p95ResponseTime.passed ? 'passed' : 'failed'}">
-                <span>95th Percentile: ${data.slaResults.p95ResponseTime.value.toFixed(0)}ms</span>
-                <span>(≤ ${data.slaResults.p95ResponseTime.threshold}ms)</span>
+              <div class="sla-item ${data.slaResults.avgResponseTime.passed ? 'passed' : 'failed'}">
+                <span>Average Response Time: ${data.slaResults.avgResponseTime.value.toFixed(0)}ms</span>
+                <span>(≤ ${data.slaResults.avgResponseTime.threshold}ms)</span>
               </div>
               <div class="sla-item ${data.slaResults.averageThroughput.passed ? 'passed' : 'failed'}">
-                <span>Throughput: ${data.slaResults.averageThroughput.value.toFixed(2)} req/s</span>
-                <span>(≥ ${data.slaResults.averageThroughput.threshold} req/s)</span>
+                <span>Throughput: ${(data.slaResults.averageThroughput.value * 3600).toFixed(0)} TPH</span>
+                <span>(≥ ${(data.slaResults.averageThroughput.threshold * 3600).toFixed(0)} TPH)</span>
               </div>
               <div class="sla-item ${data.slaResults.errorRate.passed ? 'passed' : 'failed'}">
                 <span>Error Rate: ${data.slaResults.errorRate.value.toFixed(2)}%</span>
