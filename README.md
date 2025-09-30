@@ -25,8 +25,14 @@ npm run dev
 # Generate report from JTL file
 npm run generate-report -- -i path/to/your/test-results.jtl
 
+# Generate comparison report between two test runs
+npm run generate-comparison-report -- -c current-test.jtl -p previous-test.jtl
+
 # Specify custom output location
 npm run generate-report -- -i results.jtl -o custom-report.html
+
+# Comparison report with custom output
+npm run generate-comparison-report -- -c current.jtl -p baseline.jtl -o comparison.html
 
 # Show help
 npm run generate-report -- --help
@@ -43,6 +49,15 @@ npm run generate-report -- -i ./performance-test.csv -o ./reports/performance-re
 
 # Process file with full paths
 npm run generate-report -- --input /home/user/jmeter-results.jtl --output /home/user/reports/report.html
+
+# Generate comparison report
+npm run generate-comparison-report -- -c ./current-test.jtl -p ./baseline-test.jtl
+
+# Comparison with custom output location
+npm run generate-comparison-report -- --current-input ./new-results.csv --previous-input ./old-results.csv -o ./reports/comparison-report.html
+
+# Comparison with configuration file
+npm run generate-comparison-report -- -c current.jtl -p baseline.jtl -f config.json -o comparison.html
 ```
 
 ## Supported File Formats
