@@ -1,13 +1,5 @@
 import { JMeterData, TestSummary, ComparisonResult } from '../types/jmeter';
 
-interface ComparisonData {
-  current: TestSummary;
-  previous: TestSummary;
-  fileName: string;
-  previousFileName: string;
-}
-
-export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData): string => {
   // Calculate transaction count for dynamic layout
   const transactionCount = data.transactions?.length || 0;
   
@@ -1349,7 +1341,7 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
         ${generateDashboardTab()}
         ${generateGraphsTab()}
         ${generateErrorsTab()}
-        ${comparison ? generateComparisonTab(comparison) : ''}
+        ${comparisonResult ? generateComparisonTab(comparisonResult) : ''}
     </div>
     
     <script>

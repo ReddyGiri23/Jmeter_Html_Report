@@ -5,9 +5,12 @@ import { resolve, basename, extname } from 'path';
 import { DOMParser } from '@xmldom/xmldom';
 import { parseJMeterFile } from './utils/jmeterParser';
 import { generateHTMLReport } from './utils/reportGenerator';
+import { compareJMeterResults } from './utils/comparisonAnalyzer';
 
 interface CLIOptions {
   input: string;
+  currentInput?: string;
+  previousInput?: string;
   output?: string;
   help?: boolean;
 }
@@ -27,6 +30,14 @@ const parseArgs = (args: string[]): CLIOptions => {
       case '--output':
         options.output = args[++i];
         break;
+      case '--current-input':
+      case '-c':
+        options.currentInput = args[++i];
+        break;
+      case '--previous-input':
+      case '-p':
+        options.previousInput = args[++i];
+        break;
       case '-h':
       case '--help':
         options.help = true;
@@ -41,19 +52,28 @@ const showHelp = () => {
   console.log(`
 JMeter HTML Report Generator CLI
 
-Usage: npm run generate-report -- -i <input-file> [-o <output-file>]
+Usage: 
+  Single Report:    npm run generate-report -- -i <input-file> [-o <output-file>]
+  Comparison Report: npm run generate-report -- -c <current-file> -p <previous-file> [-o <output-file>]
 
 Options:
-  -i, --input <file>    Path to JMeter JTL/CSV file (required)
+  -i, --input <file>    Path to JMeter JTL/CSV file (required for single report)
+  -c, --current-input <file>   Path to current/new JMeter JTL/CSV file (for comparison)
+  -p, --previous-input <file>  Path to previous/baseline JMeter JTL/CSV file (for comparison)
   -o, --output <file>   Output HTML file path (optional)
   -h, --help           Show this help message
 
-Examples:
+Single Report Examples:
   npm run generate-report -- -i ./test-results.jtl
   npm run generate-report -- -i ./results.csv -o ./custom-report.html
   npm run generate-report -- --input ./load-test.jtl --output ./performance-report.html
 
+Comparison Report Examples:
+  npm run generate-report -- -c ./current-test.jtl -p ./baseline-test.jtl
+  npm run generate-report -- --current-input ./new-results.csv --previous-input ./old-results.csv -o ./comparison-report.html
+
 Default output: jmeter-report-[timestamp].html in current directory
+For comparison: jmeter-comparison-report-[timestamp].html in current directory
 `);
 };
 
@@ -67,6 +87,16 @@ const generateOutputPath = (inputPath: string, customOutput?: string): string =>
   return resolve(`jmeter-report-${inputName}-${timestamp}.html`);
 };
 
+const generateComparisonOutputPath = (currentPath: string, previousPath: string, customOutput?: string): string => {
+  if (customOutput) {
+    return resolve(customOutput);
+  }
+  
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+  const currentName = basename(currentPath, extname(currentPath));
+  const previousName = basename(previousPath, extname(previousPath));
+  return resolve(`jmeter-comparison-report-${currentName}-vs-${previousName}-${timestamp}.html`);
+};
 const main = async () => {
   const args = process.argv.slice(2);
   const options = parseArgs(args);
@@ -76,68 +106,171 @@ const main = async () => {
     process.exit(0);
   }
   
-  if (!options.input) {
-    console.error('❌ Error: Input file is required');
+  // Check if this is a comparison report request
+  const isComparison = options.currentInput && options.previousInput;
+  const isSingleReport = options.input;
+  
+  if (!isComparison && !isSingleReport) {
+    console.error('❌ Error: Either input file (-i) or both comparison files (-c and -p) are required');
+    console.error('Use -h or --help for usage information');
+    process.exit(1);
+  }
+  
+  if (isComparison && (!options.currentInput || !options.previousInput)) {
+    console.error('❌ Error: Both current input (-c) and previous input (-p) files are required for comparison');
     console.error('Use -h or --help for usage information');
     process.exit(1);
   }
   
   try {
-    const inputPath = resolve(options.input);
-    const outputPath = generateOutputPath(inputPath, options.output);
-    
-    // Check if input file exists
-    if (!existsSync(inputPath)) {
-      console.error(`❌ Error: Input file not found: ${inputPath}`);
-      console.error('Please check the file path and try again.');
-      process.exit(1);
+    if (isComparison) {
+      // Handle comparison report generation
+      const currentPath = resolve(options.currentInput!);
+      const previousPath = resolve(options.previousInput!);
+      const outputPath = generateComparisonOutputPath(currentPath, previousPath, options.output);
+      
+      // Check if both input files exist
+      if (!existsSync(currentPath)) {
+        console.error(`❌ Error: Current input file not found: ${currentPath}`);
+        console.error('Please check the file path and try again.');
+        process.exit(1);
+      }
+      
+      if (!existsSync(previousPath)) {
+        console.error(`❌ Error: Previous input file not found: ${previousPath}`);
+        console.error('Please check the file path and try again.');
+        process.exit(1);
+      }
+      
+      console.log('🚀 JMeter HTML Comparison Report Generator');
+      console.log(`📁 Current file: ${currentPath}`);
+      console.log(`📁 Previous file: ${previousPath}`);
+      console.log(`📄 Output file: ${outputPath}`);
+      console.log('');
+      
+      console.log('📖 Reading current JTL file...');
+      const currentFileContent = readFileSync(currentPath, 'utf-8');
+      
+      if (!currentFileContent || currentFileContent.trim().length === 0) {
+        console.error('❌ Error: Current input file is empty');
+        process.exit(1);
+      }
+      
+      console.log('📖 Reading previous JTL file...');
+      const previousFileContent = readFileSync(previousPath, 'utf-8');
+      
+      if (!previousFileContent || previousFileContent.trim().length === 0) {
+        console.error('❌ Error: Previous input file is empty');
+        process.exit(1);
+      }
+      
+      // Create File-like objects for the parser
+      const currentFile = {
+        name: basename(currentPath),
+        size: currentFileContent.length,
+        text: async () => currentFileContent,
+        type: currentPath.toLowerCase().endsWith('.xml') || currentPath.toLowerCase().endsWith('.jtl') ? 'text/xml' : 'text/csv'
+      } as File;
+      
+      const previousFile = {
+        name: basename(previousPath),
+        size: previousFileContent.length,
+        text: async () => previousFileContent,
+        type: previousPath.toLowerCase().endsWith('.xml') || previousPath.toLowerCase().endsWith('.jtl') ? 'text/xml' : 'text/csv'
+      } as File;
+      
+      console.log('⚙️  Processing current JMeter data...');
+      const currentData = await parseJMeterFile(currentFile, DOMParser);
+      
+      console.log('⚙️  Processing previous JMeter data...');
+      const previousData = await parseJMeterFile(previousFile, DOMParser);
+      
+      console.log('🔄 Comparing test results...');
+      const comparisonResult = compareJMeterResults(
+        currentData,
+        previousData,
+        basename(currentPath),
+        basename(previousPath)
+      );
+      
+      console.log('📊 Generating HTML comparison report...');
+      const htmlReport = generateHTMLReport(currentData, comparisonResult);
+      
+      console.log('💾 Saving HTML report...');
+      const finalOutputPath = outputPath.endsWith('.html') ? outputPath : `${outputPath}.html`;
+      writeFileSync(finalOutputPath, htmlReport, 'utf-8');
+      
+      console.log('');
+      console.log('✅ Comparison report generated successfully!');
+      console.log('');
+      console.log('📈 Comparison Summary:');
+      console.log(`   • Current Test: ${currentData.summary.totalRequests.toLocaleString()} requests, ${currentData.summary.avgResponseTime.toFixed(0)}ms avg`);
+      console.log(`   • Previous Test: ${previousData.summary.totalRequests.toLocaleString()} requests, ${previousData.summary.avgResponseTime.toFixed(0)}ms avg`);
+      console.log(`   • Transactions Compared: ${comparisonResult.metrics.length}`);
+      console.log(`   • Overall Status: ${comparisonResult.overallStatus.toUpperCase()}`);
+      console.log(`   • Top Improvements: ${comparisonResult.insights.topImprovements.length}`);
+      console.log(`   • Top Regressions: ${comparisonResult.insights.topRegressions.length}`);
+      console.log('');
+      console.log(`📂 Open report: ${finalOutputPath}`);
+      
+    } else {
+      // Handle single report generation (existing logic)
+      const inputPath = resolve(options.input!);
+      const outputPath = generateOutputPath(inputPath, options.output);
+      
+      // Check if input file exists
+      if (!existsSync(inputPath)) {
+        console.error(`❌ Error: Input file not found: ${inputPath}`);
+        console.error('Please check the file path and try again.');
+        process.exit(1);
+      }
+      
+      console.log('🚀 JMeter HTML Report Generator');
+      console.log(`📁 Input file: ${inputPath}`);
+      console.log(`📄 Output file: ${outputPath}`);
+      console.log('');
+      
+      console.log('📖 Reading JTL file...');
+      const fileContent = readFileSync(inputPath, 'utf-8');
+      
+      if (!fileContent || fileContent.trim().length === 0) {
+        console.error('❌ Error: Input file is empty');
+        process.exit(1);
+      }
+      
+      // Create a File-like object for the parser
+      const file = {
+        name: basename(inputPath),
+        size: fileContent.length,
+        text: async () => fileContent,
+        type: inputPath.toLowerCase().endsWith('.xml') || inputPath.toLowerCase().endsWith('.jtl') ? 'text/xml' : 'text/csv'
+      } as File;
+      
+      console.log('⚙️  Processing JMeter data...');
+      const jmeterData = await parseJMeterFile(file, DOMParser);
+      
+      console.log('📊 Generating HTML report...');
+      const htmlReport = generateHTMLReport(jmeterData);
+      
+      console.log('💾 Saving HTML report...');
+      // Ensure output path has .html extension
+      const finalOutputPath = outputPath.endsWith('.html') ? outputPath : `${outputPath}/jmeter-report-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.html`;
+      writeFileSync(finalOutputPath, htmlReport, 'utf-8');
+      
+      console.log('');
+      console.log('✅ Report generated successfully!');
+      console.log('');
+      console.log('📈 Test Summary:');
+      console.log(`   • Total Requests: ${jmeterData.summary.totalRequests.toLocaleString()}`);
+      console.log(`   • Test Duration: ${jmeterData.summary.testDuration}s`);
+      console.log(`   • Average Response Time: ${jmeterData.summary.avgResponseTime.toFixed(0)}ms`);
+      console.log(`   • 95th Percentile: ${jmeterData.summary.p95ResponseTime.toFixed(0)}ms`);
+      console.log(`   • Throughput: ${jmeterData.summary.overallThroughput.toFixed(2)} req/s`);
+      console.log(`   • Error Rate: ${jmeterData.summary.errorRate.toFixed(2)}%`);
+      console.log(`   • SLA Status: ${jmeterData.slaResults.overallPassed ? '✅ PASSED' : '❌ FAILED'}`);
+      console.log('');
+      console.log(`📂 Open report: ${finalOutputPath}`);
     }
-    
-    console.log('🚀 JMeter HTML Report Generator');
-    console.log(`📁 Input file: ${inputPath}`);
-    console.log(`📄 Output file: ${outputPath}`);
-    console.log('');
-    
-    console.log('📖 Reading JTL file...');
-    const fileContent = readFileSync(inputPath, 'utf-8');
-    
-    if (!fileContent || fileContent.trim().length === 0) {
-      console.error('❌ Error: Input file is empty');
-      process.exit(1);
-    }
-    
-    // Create a File-like object for the parser
-    const file = {
-      name: basename(inputPath),
-      size: fileContent.length,
-      text: async () => fileContent,
-      type: inputPath.toLowerCase().endsWith('.xml') || inputPath.toLowerCase().endsWith('.jtl') ? 'text/xml' : 'text/csv'
-    } as File;
-    
-    console.log('⚙️  Processing JMeter data...');
-    const jmeterData = await parseJMeterFile(file, DOMParser);
-    
-    console.log('📊 Generating HTML report...');
-    const htmlReport = generateHTMLReport(jmeterData);
-    
-    console.log('💾 Saving HTML report...');
-    // Ensure output path has .html extension
-    const finalOutputPath = outputPath.endsWith('.html') ? outputPath : `${outputPath}/jmeter-report-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.html`;
-    writeFileSync(finalOutputPath, htmlReport, 'utf-8');
-    
-    console.log('');
-    console.log('✅ Report generated successfully!');
-    console.log('');
-    console.log('📈 Test Summary:');
-    console.log(`   • Total Requests: ${jmeterData.summary.totalRequests.toLocaleString()}`);
-    console.log(`   • Test Duration: ${jmeterData.summary.testDuration}s`);
-    console.log(`   • Average Response Time: ${jmeterData.summary.avgResponseTime.toFixed(0)}ms`);
-    console.log(`   • 95th Percentile: ${jmeterData.summary.p95ResponseTime.toFixed(0)}ms`);
-    console.log(`   • Throughput: ${jmeterData.summary.overallThroughput.toFixed(2)} req/s`);
-    console.log(`   • Error Rate: ${jmeterData.summary.errorRate.toFixed(2)}%`);
-    console.log(`   • SLA Status: ${jmeterData.slaResults.overallPassed ? '✅ PASSED' : '❌ FAILED'}`);
-    console.log('');
-    console.log(`📂 Open report: ${finalOutputPath}`);
     
   } catch (error) {
     console.error('');
