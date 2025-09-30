@@ -191,6 +191,26 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
         <div class="chart-container full-width">
           <canvas id="scatterChart"></canvas>
         </div>
+        <div class="correlation-section">
+          <h3 class="correlation-title">Performance Correlation Analysis</h3>
+          <div class="correlation-grid">
+            <div class="chart-container">
+              <canvas id="usersVsResponseTimeChart"></canvas>
+            </div>
+            <div class="chart-container">
+              <canvas id="errorsVsUsersChart"></canvas>
+            </div>
+            <div class="chart-container">
+              <canvas id="errorsVsResponseTimeChart"></canvas>
+            </div>
+            <div class="chart-container correlation-insights">
+              <div class="insights-content">
+                <h4>Correlation Insights</h4>
+                <p>Analyze the correlation patterns between users, response times, errors, and throughput to identify performance bottlenecks and optimization opportunities.</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -526,6 +546,111 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
           }
         }
       });
+      
+      // Users vs Response Time Chart
+      const usersVsResponseTimeCtx = document.getElementById('usersVsResponseTimeChart').getContext('2d');
+      const groupedUsersVsResponseTime = chartData.usersVsResponseTime.reduce((acc, point) => {
+        if (!acc[point.label]) acc[point.label] = [];
+        acc[point.label].push({ x: point.x, y: point.y });
+        return acc;
+      }, {});
+      
+      new Chart(usersVsResponseTimeCtx, {
+        type: 'line',
+        data: {
+          datasets: Object.entries(groupedUsersVsResponseTime).map(([label, points], index) => ({
+            label,
+            data: points.sort((a, b) => a.x - b.x),
+            backgroundColor: \`hsla(\${(index * 137.5) % 360}, 70%, 50%, 0.6)\`,
+            borderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 40%)\`,
+            borderWidth: 2,
+            fill: false,
+            tension: 0.1,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            showLine: true,
+          }))
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { title: { display: true, text: 'Active Users' } },
+            y: { title: { display: true, text: 'Response Time (ms)' } }
+          },
+          plugins: {
+            title: { display: true, text: 'Users vs Response Time' }
+          }
+        }
+      });
+      
+      // Errors vs Users Chart
+      const errorsVsUsersCtx = document.getElementById('errorsVsUsersChart').getContext('2d');
+      const groupedErrorsVsUsers = chartData.errorsVsUsers.reduce((acc, point) => {
+        if (!acc[point.label]) acc[point.label] = [];
+        acc[point.label].push({ x: point.x, y: point.y });
+        return acc;
+      }, {});
+      
+      new Chart(errorsVsUsersCtx, {
+        type: 'scatter',
+        data: {
+          datasets: Object.entries(groupedErrorsVsUsers).map(([label, points], index) => ({
+            label,
+            data: points,
+            backgroundColor: \`hsla(\${(index * 137.5) % 360}, 70%, 50%, 0.6)\`,
+            borderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 40%)\`,
+            borderWidth: 2,
+            pointRadius: 6,
+            pointHoverRadius: 8,
+          }))
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { title: { display: true, text: 'Active Users' } },
+            y: { title: { display: true, text: 'Response Time (ms)' } }
+          },
+          plugins: {
+            title: { display: true, text: 'Errors vs Users' }
+          }
+        }
+      });
+      
+      // Errors vs Response Time Chart
+      const errorsVsResponseTimeCtx = document.getElementById('errorsVsResponseTimeChart').getContext('2d');
+      const groupedErrorsVsResponseTime = chartData.errorsVsResponseTime.reduce((acc, point) => {
+        if (!acc[point.label]) acc[point.label] = [];
+        acc[point.label].push({ x: point.x, y: point.y });
+        return acc;
+      }, {});
+      
+      new Chart(errorsVsResponseTimeCtx, {
+        type: 'scatter',
+        data: {
+          datasets: Object.entries(groupedErrorsVsResponseTime).map(([label, points], index) => ({
+            label,
+            data: points,
+            backgroundColor: \`hsla(\${(index * 137.5) % 360}, 70%, 50%, 0.6)\`,
+            borderColor: \`hsl(\${(index * 137.5) % 360}, 70%, 40%)\`,
+            borderWidth: 2,
+            pointRadius: 6,
+            pointHoverRadius: 8,
+          }))
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { title: { display: true, text: 'Response Time (ms)' } },
+            y: { title: { display: true, text: 'Active Users' } }
+          },
+          plugins: {
+            title: { display: true, text: 'Errors vs Response Time' }
+          }
+        }
+      });
     </script>
   `;
 
@@ -798,6 +923,55 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
         
         .chart-container.full-width {
             grid-column: 1 / -1;
+        }
+        
+        .correlation-section {
+            margin-top: 40px;
+        }
+        
+        .correlation-title {
+            color: #7c3aed;
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+        }
+        
+        .correlation-title::before {
+            content: "📊";
+            margin-right: 10px;
+        }
+        
+        .correlation-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        
+        .correlation-insights {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+        }
+        
+        .insights-content {
+            text-align: center;
+            color: #6b7280;
+            padding: 20px;
+        }
+        
+        .insights-content h4 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #374151;
+        }
+        
+        .insights-content p {
+            font-size: 0.9rem;
+            line-height: 1.5;
         }
         
         .no-errors {
@@ -1074,6 +1248,10 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
             }
             
             .charts-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .correlation-grid {
                 grid-template-columns: 1fr;
             }
             

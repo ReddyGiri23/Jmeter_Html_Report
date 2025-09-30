@@ -3,9 +3,17 @@ import Chart from 'chart.js/auto';
 
 interface ScatterChartProps {
   data: Array<{ x: number; y: number; label: string }>;
+  title?: string;
+  xAxisLabel?: string;
+  yAxisLabel?: string;
 }
 
-const ScatterChart: React.FC<ScatterChartProps> = ({ data }) => {
+const ScatterChart: React.FC<ScatterChartProps> = ({ 
+  data, 
+  title = 'Throughput vs Response Time',
+  xAxisLabel = 'Throughput (req/s)',
+  yAxisLabel = 'Response Time (ms)'
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<Chart | null>(null);
 
@@ -56,20 +64,20 @@ const ScatterChart: React.FC<ScatterChartProps> = ({ data }) => {
           x: {
             title: {
               display: true,
-              text: 'Throughput (req/s)'
+              text: xAxisLabel
             }
           },
           y: {
             title: {
               display: true,
-              text: 'Response Time (ms)'
+              text: yAxisLabel
             }
           }
         },
         plugins: {
           title: {
             display: true,
-            text: 'Throughput vs Response Time'
+            text: title
           },
           legend: {
             display: true,
@@ -81,7 +89,7 @@ const ScatterChart: React.FC<ScatterChartProps> = ({ data }) => {
                 return context[0].dataset.label || '';
               },
               label: function(context) {
-                return `Throughput: ${context.parsed.x.toFixed(2)} req/s, Response Time: ${context.parsed.y.toFixed(0)} ms`;
+                return `${xAxisLabel}: ${context.parsed.x.toFixed(2)}, ${yAxisLabel}: ${context.parsed.y.toFixed(0)}`;
               }
             }
           }
@@ -94,7 +102,7 @@ const ScatterChart: React.FC<ScatterChartProps> = ({ data }) => {
         chartRef.current.destroy();
       }
     };
-  }, [data]);
+  }, [data, title, xAxisLabel, yAxisLabel]);
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6">

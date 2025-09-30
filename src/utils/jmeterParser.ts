@@ -465,12 +465,43 @@ const generateChartData = (samples: JMeterSample[], transactions: TransactionMet
     });
   });
 
+  // Users vs Response Time - sample data to avoid overcrowding
+  const usersVsResponseTime = samples
+    .filter((_, index) => index % Math.max(1, Math.floor(samples.length / 500)) === 0) // Sample data points
+    .filter(sample => sample.allThreads > 0) // Only include samples with valid thread count
+    .map(sample => ({
+      x: sample.allThreads,
+      y: sample.elapsed,
+      label: sample.label
+    }));
+
+  // Errors vs Users - only failed samples
+  const errorsVsUsers = samples
+    .filter(sample => !sample.success && sample.allThreads > 0)
+    .map(sample => ({
+      x: sample.allThreads,
+      y: sample.elapsed,
+      label: sample.label
+    }));
+
+  // Errors vs Response Time - only failed samples
+  const errorsVsResponseTime = samples
+    .filter(sample => !sample.success)
+    .map(sample => ({
+      x: sample.elapsed,
+      y: sample.allThreads > 0 ? sample.allThreads : 1, // Default to 1 if no thread info
+      label: sample.label
+    }));
+
   const chartData: ChartData = {
     responseTimesOverTime,
     tpsOverTime,
     errorsOverTime,
     percentiles,
-    throughputVsResponseTime
+    throughputVsResponseTime,
+    usersVsResponseTime,
+    errorsVsUsers,
+    errorsVsResponseTime
   };
 
   log('Generated chart data with data points:', {
@@ -478,7 +509,10 @@ const generateChartData = (samples: JMeterSample[], transactions: TransactionMet
     tpsOverTime: tpsOverTime.length,
     errorsOverTime: errorsOverTime.length,
     percentiles: percentiles.length,
-    throughputVsResponseTime: throughputVsResponseTime.length
+    throughputVsResponseTime: throughputVsResponseTime.length,
+    usersVsResponseTime: usersVsResponseTime.length,
+    errorsVsUsers: errorsVsUsers.length,
+    errorsVsResponseTime: errorsVsResponseTime.length
   });
 
   return chartData;

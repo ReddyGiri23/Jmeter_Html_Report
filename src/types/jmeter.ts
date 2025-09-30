@@ -73,6 +73,9 @@ export interface ChartData {
   errorsOverTime: Array<{ x: number; y: number }>;
   percentiles: Array<{ label: string; p50: number; p75: number; p90: number; p95: number; p99: number }>;
   throughputVsResponseTime: Array<{ x: number; y: number; label: string }>;
+  usersVsResponseTime: Array<{ x: number; y: number; label: string }>;
+  errorsVsUsers: Array<{ x: number; y: number; label: string }>;
+  errorsVsResponseTime: Array<{ x: number; y: number; label: string }>;
 }
 
 export interface JMeterData {
