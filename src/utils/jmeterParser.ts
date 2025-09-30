@@ -120,11 +120,11 @@ const parseCSV = (text: string): JMeterSample[] => {
 };
 
 // Enhanced XML parsing with better attribute handling
-const parseXML = (text: string): JMeterSample[] => {
+const parseXML = (text: string, DOMParserClass?: any): JMeterSample[] => {
   log('Starting XML parsing...');
   
   try {
-    const parser = new DOMParser();
+    const parser = DOMParserClass ? new DOMParserClass() : new DOMParser();
     const xmlDoc = parser.parseFromString(text, 'text/xml');
     
     // Check for parsing errors
@@ -453,7 +453,7 @@ const generateChartData = (samples: JMeterSample[], transactions: TransactionMet
 };
 
 // Main parsing function with enhanced error handling
-export const parseJMeterFile = async (file: File): Promise<JMeterData> => {
+export const parseJMeterFile = async (file: File, DOMParserClass?: any): Promise<JMeterData> => {
   log(`Starting to parse file: ${file.name} (${file.size} bytes)`);
   
   try {
@@ -465,7 +465,7 @@ export const parseJMeterFile = async (file: File): Promise<JMeterData> => {
     // Determine file format and parse accordingly
     if (text.trim().startsWith('<?xml') || text.includes('<testResults')) {
       log('Detected XML format');
-      samples = parseXML(text);
+      samples = parseXML(text, DOMParserClass);
     } else {
       log('Detected CSV format');
       samples = parseCSV(text);

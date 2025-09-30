@@ -184,7 +184,7 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ comparisonRes
           </div>
           {comparisonResult.insights.topImprovements.length > 0 ? (
             <div className="space-y-3">
-              {comparisonResult.insights.topImprovements.map((metric, index) => (
+              {comparisonResult.insights.topImprovements.map((metric, _index) => (
                 <div key={metric.label} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
                   <div>
                     <p className="font-medium text-gray-900">{metric.label}</p>
@@ -209,7 +209,7 @@ const ComparisonDashboard: React.FC<ComparisonDashboardProps> = ({ comparisonRes
           </div>
           {comparisonResult.insights.topRegressions.length > 0 ? (
             <div className="space-y-3">
-              {comparisonResult.insights.topRegressions.map((metric, index) => (
+              {comparisonResult.insights.topRegressions.map((metric, _index) => (
                 <div key={metric.label} className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
                   <div>
                     <p className="font-medium text-gray-900">{metric.label}</p>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Upload, FileText, Download, GitCompare } from 'lucide-react';
 import FileUploader from './components/FileUploader';
 import ReportDashboard from './components/ReportDashboard';

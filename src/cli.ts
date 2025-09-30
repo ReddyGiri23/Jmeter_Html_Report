@@ -2,6 +2,7 @@
 
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { resolve, basename, extname } from 'path';
+import { DOMParser } from '@xmldom/xmldom';
 import { parseJMeterFile } from './utils/jmeterParser';
 import { generateHTMLReport } from './utils/reportGenerator';
 
@@ -114,7 +115,7 @@ const main = async () => {
     } as File;
     
     console.log('⚙️  Processing JMeter data...');
-    const jmeterData = await parseJMeterFile(file);
+    const jmeterData = await parseJMeterFile(file, DOMParser);
     
     console.log('📊 Generating HTML report...');
     const htmlReport = generateHTMLReport(jmeterData);
