@@ -51,13 +51,16 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData }) => {
           </p>
         </div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="space-y-8">
           <ScatterChart 
             data={chartData.throughputVsResponseTime}
             title="Throughput vs Response Time"
             xAxisLabel="Throughput (req/s)"
             yAxisLabel="Response Time (ms)"
           />
+        </div>
+        
+        <div className="space-y-8">
           <ScatterChart 
             data={chartData.usersVsResponseTime}
             title="Users vs Response Time"
@@ -66,13 +69,16 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData }) => {
           />
         </div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+        <div className="space-y-8">
           <ScatterChart 
             data={chartData.errorsVsUsers}
             title="Errors vs Users"
             xAxisLabel="Active Users"
             yAxisLabel="Response Time (ms)"
           />
+        </div>
+        
+        <div className="space-y-8">
           <ScatterChart 
             data={chartData.errorsVsResponseTime}
             title="Errors vs Response Time"

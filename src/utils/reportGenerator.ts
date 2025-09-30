@@ -198,7 +198,7 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
         <div class="correlation-section full-width">
           <h3 class="correlation-title">Performance Correlation Analysis</h3>
           <p class="correlation-description">These scatter charts reveal relationships between different performance metrics, helping identify patterns and performance bottlenecks.</p>
-          <div class="correlation-grid">
+          <div class="correlation-grid-large">
             <div class="chart-container">
               <canvas id="throughputVsResponseTimeChart"></canvas>
             </div>
@@ -914,7 +914,7 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            height: 400px;
+            height: 500px;
         }
         
         .chart-container.full-width {
@@ -954,6 +954,12 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 30px;
+        }
+        
+        .correlation-grid-large {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 40px;
         }
         
         .correlation-insights {
@@ -1265,6 +1271,10 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
             }
             
             .correlation-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .correlation-grid-large {
                 grid-template-columns: 1fr;
             }
             
