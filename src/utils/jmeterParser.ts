@@ -343,11 +343,29 @@ const getErrorSamples = (samples: JMeterSample[]): ErrorSample[] => {
       label: sample.label,
       responseTime: sample.elapsed,
       threadName: sample.threadName,
-      responseMessage: sample.responseMessage || `HTTP ${sample.responseCode}`
+      responseMessage: sample.responseMessage || `HTTP ${sample.responseCode}`,
+      responseCode: sample.responseCode || 'Unknown'
     }));
 
   log(`Extracted ${errorSamples.length} error samples`);
   return errorSamples;
+};
+
+// Calculate error counts by HTTP status code
+const calculateErrorCountsByStatusCode = (samples: JMeterSample[]): Record<string, number> => {
+  log('Calculating error counts by status code...');
+  
+  const errorCounts: Record<string, number> = {};
+  
+  samples
+    .filter(sample => !sample.success)
+    .forEach(sample => {
+      const statusCode = sample.responseCode || 'Unknown';
+      errorCounts[statusCode] = (errorCounts[statusCode] || 0) + 1;
+    });
+
+  log(`Error counts by status code:`, errorCounts);
+  return errorCounts;
 };
 
 // Enhanced chart data generation with time-based aggregation
@@ -496,6 +514,7 @@ export const parseJMeterFile = async (file: File, DOMParserClass?: any): Promise
     const transactions = generateTransactionMetrics(samples);
     const slaResults = evaluateSLAs(summary, transactions);
     const errorSamples = getErrorSamples(samples);
+    const errorCountsByStatusCode = calculateErrorCountsByStatusCode(samples);
     const chartData = generateChartData(samples, transactions);
 
     const jmeterData: JMeterData = {
@@ -504,6 +523,7 @@ export const parseJMeterFile = async (file: File, DOMParserClass?: any): Promise
       transactions,
       slaResults,
       errorSamples,
+      errorCountsByStatusCode,
       chartData
     };
 

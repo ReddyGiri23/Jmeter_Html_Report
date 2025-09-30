@@ -64,6 +64,7 @@ export interface ErrorSample {
   responseTime: number;
   threadName: string;
   responseMessage: string;
+  responseCode: string;
 }
 
 export interface ChartData {
@@ -80,6 +81,7 @@ export interface JMeterData {
   transactions: TransactionMetrics[];
   slaResults: SLAResult;
   errorSamples: ErrorSample[];
+  errorCountsByStatusCode: Record<string, number>;
   chartData: ChartData;
 }
 

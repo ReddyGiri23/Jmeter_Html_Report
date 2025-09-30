@@ -26,6 +26,41 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
     }
   };
 
+  const groupErrorsByStatusCode = (errorSamples: any[]) => {
+    return errorSamples.reduce((acc, error) => {
+      const statusCode = error.responseCode || 'Unknown';
+      if (!acc[statusCode]) acc[statusCode] = [];
+      acc[statusCode].push(error);
+      return acc;
+    }, {} as Record<string, any[]>);
+  };
+
+  const getStatusCodeClass = (statusCode: string): string => {
+    const code = parseInt(statusCode);
+    if (code >= 400 && code < 500) return 'status-4xx';
+    if (code >= 500) return 'status-5xx';
+    if (code >= 300 && code < 400) return 'status-3xx';
+    return 'status-unknown';
+  };
+
+  const getStatusCodeDescription = (statusCode: string): string => {
+    const descriptions: Record<string, string> = {
+      '400': 'Bad Request',
+      '401': 'Unauthorized',
+      '403': 'Forbidden',
+      '404': 'Not Found',
+      '405': 'Method Not Allowed',
+      '408': 'Request Timeout',
+      '429': 'Too Many Requests',
+      '500': 'Internal Server Error',
+      '502': 'Bad Gateway',
+      '503': 'Service Unavailable',
+      '504': 'Gateway Timeout',
+      'Unknown': 'Unknown Error'
+    };
+    return descriptions[statusCode] || `HTTP ${statusCode}`;
+  };
+
   const generateDashboardTab = () => `
     <div id="dashboard" class="tab-content active">
       <div class="summary-grid">
@@ -171,31 +206,62 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
             <small>All requests completed successfully!</small>
           </div>
         ` : `
+          <!-- Error Summary by Status Code -->
+          <div class="error-status-summary">
+            <h4>Error Summary by HTTP Status Code</h4>
+            <div class="status-code-grid">
+              ${Object.entries(data.errorCountsByStatusCode)
+                .sort(([,a], [,b]) => b - a)
+                .map(([statusCode, count]) => `
+                  <div class="status-code-card ${getStatusCodeClass(statusCode)}">
+                    <div class="status-code">${statusCode}</div>
+                    <div class="error-count">${count} error${count !== 1 ? 's' : ''}</div>
+                    <div class="status-description">${getStatusCodeDescription(statusCode)}</div>
+                  </div>
+                `).join('')}
+            </div>
+          </div>
+
           <div class="error-count">
             <span class="error-badge">${data.errorSamples.length} Error${data.errorSamples.length !== 1 ? 's' : ''} Found</span>
           </div>
-          <table class="error-table">
-            <thead>
-              <tr>
-                <th>Timestamp</th>
-                <th>Transaction</th>
-                <th>Response Time</th>
-                <th>Thread/User</th>
-                <th>Error Message</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${data.errorSamples.map(error => `
-                <tr>
-                  <td>${formatDate(error.timestamp)}</td>
-                  <td>${error.label}</td>
-                  <td>${error.responseTime.toFixed(0)} ms</td>
-                  <td>${error.threadName}</td>
-                  <td class="error-message">${error.responseMessage || 'Unknown error'}</td>
-                </tr>
+
+          <!-- Errors Grouped by Status Code -->
+          <div class="errors-by-status">
+            ${Object.entries(groupErrorsByStatusCode(data.errorSamples))
+              .sort(([,a], [,b]) => b.length - a.length)
+              .map(([statusCode, errors]) => `
+                <div class="status-group">
+                  <h4 class="status-group-header ${getStatusCodeClass(statusCode)}">
+                    <span class="status-code-badge">${statusCode}</span>
+                    <span class="status-description">${getStatusCodeDescription(statusCode)}</span>
+                    <span class="error-count-badge">${errors.length} error${errors.length !== 1 ? 's' : ''}</span>
+                  </h4>
+                  <table class="error-table">
+                    <thead>
+                      <tr>
+                        <th>Timestamp</th>
+                        <th>Transaction</th>
+                        <th>Response Time</th>
+                        <th>Thread/User</th>
+                        <th>Error Message</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${errors.map(error => `
+                        <tr>
+                          <td>${formatDate(error.timestamp)}</td>
+                          <td>${error.label}</td>
+                          <td>${error.responseTime.toFixed(0)} ms</td>
+                          <td>${error.threadName}</td>
+                          <td class="error-message">${error.responseMessage || 'Unknown error'}</td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>
               `).join('')}
-            </tbody>
-          </table>
+          </div>
         `}
       </div>
     </div>
@@ -873,6 +939,130 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
             color: #991b1b;
         }
         
+        .error-status-summary {
+          margin-bottom: 30px;
+          padding: 20px;
+          background: #f8f9fa;
+          border-radius: 10px;
+        }
+        
+        .error-status-summary h4 {
+          margin-bottom: 15px;
+          color: #495057;
+          font-size: 1.1rem;
+        }
+        
+        .status-code-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 15px;
+        }
+        
+        .status-code-card {
+          background: white;
+          padding: 15px;
+          border-radius: 8px;
+          text-align: center;
+          border-left: 4px solid;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .status-code-card.status-4xx {
+          border-left-color: #f59e0b;
+          background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+        }
+        
+        .status-code-card.status-5xx {
+          border-left-color: #ef4444;
+          background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+        }
+        
+        .status-code-card.status-3xx {
+          border-left-color: #3b82f6;
+          background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+        }
+        
+        .status-code-card.status-unknown {
+          border-left-color: #6b7280;
+          background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+        }
+        
+        .status-code {
+          font-size: 1.5rem;
+          font-weight: 700;
+          margin-bottom: 5px;
+        }
+        
+        .status-code-card .error-count {
+          font-size: 1.1rem;
+          font-weight: 600;
+          margin-bottom: 5px;
+        }
+        
+        .status-description {
+          font-size: 0.85rem;
+          color: #6b7280;
+        }
+        
+        .errors-by-status {
+          margin-top: 30px;
+        }
+        
+        .status-group {
+          margin-bottom: 30px;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          overflow: hidden;
+        }
+        
+        .status-group-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 15px 20px;
+          margin: 0;
+          font-size: 1.1rem;
+          font-weight: 600;
+        }
+        
+        .status-group-header.status-4xx {
+          background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+          color: #92400e;
+        }
+        
+        .status-group-header.status-5xx {
+          background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+          color: #991b1b;
+        }
+        
+        .status-group-header.status-3xx {
+          background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+          color: #1e40af;
+        }
+        
+        .status-group-header.status-unknown {
+          background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+          color: #374151;
+        }
+        
+        .status-code-badge {
+          font-size: 1.2rem;
+          font-weight: 700;
+        }
+        
+        .error-count-badge {
+          background: rgba(255,255,255,0.8);
+          padding: 4px 8px;
+          border-radius: 12px;
+          font-size: 0.85rem;
+          font-weight: 600;
+        }
+        
+        .status-group .error-table {
+          margin: 0;
+          border-radius: 0;
+        }
+        
         @media (max-width: 768px) {
             .container {
                 padding: 10px;
@@ -899,6 +1089,16 @@ export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonData
             .tab:last-child {
                 border-bottom: none;
             }
+          
+          .status-code-grid {
+            grid-template-columns: 1fr;
+          }
+          
+          .status-group-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+          }
         }
     </style>
 </head>
