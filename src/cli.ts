@@ -6,12 +6,14 @@ import { DOMParser } from '@xmldom/xmldom';
 import { parseJMeterFile } from './utils/jmeterParser';
 import { generateHTMLReport } from './utils/reportGenerator';
 import { compareJMeterResults } from './utils/comparisonAnalyzer';
+import { ReportGenerationOptions } from './types/jmeter';
 
 interface CLIOptions {
   input: string;
   currentInput?: string;
   previousInput?: string;
   output?: string;
+  configFile?: string;
   help?: boolean;
 }
 
@@ -38,6 +40,10 @@ const parseArgs = (args: string[]): CLIOptions => {
       case '-p':
         options.previousInput = args[++i];
         break;
+      case '-f':
+      case '--config-file':
+        options.configFile = args[++i];
+        break;
       case '-h':
       case '--help':
         options.help = true;
@@ -61,19 +67,39 @@ Options:
   -c, --current-input <file>   Path to current/new JMeter JTL/CSV file (for comparison)
   -p, --previous-input <file>  Path to previous/baseline JMeter JTL/CSV file (for comparison)
   -o, --output <file>   Output HTML file path (optional)
+  -f, --config-file <file>     Path to JSON configuration file for SLA thresholds and settings (optional)
   -h, --help           Show this help message
 
 Single Report Examples:
   npm run generate-report -- -i ./test-results.jtl
   npm run generate-report -- -i ./results.csv -o ./custom-report.html
   npm run generate-report -- --input ./load-test.jtl --output ./performance-report.html
+  npm run generate-report -- -i ./test-results.jtl -f ./config.json
 
 Comparison Report Examples:
   npm run generate-report -- -c ./current-test.jtl -p ./baseline-test.jtl
   npm run generate-report -- --current-input ./new-results.csv --previous-input ./old-results.csv -o ./comparison-report.html
+  npm run generate-report -- -c ./current-test.jtl -p ./baseline-test.jtl -f ./config.json
 
 Default output: jmeter-report-[timestamp].html in current directory
 For comparison: jmeter-comparison-report-[timestamp].html in current directory
+
+Configuration File Format (JSON):
+{
+  "slaThresholds": {
+    "avgResponseTime": 3000,
+    "throughput": 0.03055,
+    "errorRate": 10
+  },
+  "reportOptions": {
+    "includeCharts": true,
+    "maxErrorSamples": 200,
+    "samplingRate": 2
+  },
+  "testConfig": {
+    "testEnvironment": "PPE02"
+  }
+}
 `);
 };
 
@@ -98,12 +124,40 @@ const generateComparisonOutputPath = (currentPath: string, previousPath: string,
   return resolve(`jmeter-comparison-report-${currentName}-vs-${previousName}-${timestamp}.html`);
 };
 const main = async () => {
+const loadConfigFile = (configPath: string): ReportGenerationOptions | null => {
+  try {
+    if (!existsSync(configPath)) {
+      console.error(`❌ Error: Configuration file not found: ${configPath}`);
+      return null;
+    }
+    
+    const configContent = readFileSync(configPath, 'utf-8');
+    const config = JSON.parse(configContent) as ReportGenerationOptions;
+    
+    console.log('📋 Loaded configuration from:', configPath);
+    return config;
+  } catch (error) {
+    console.error(`❌ Error loading configuration file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    return null;
+  }
+};
+
   const args = process.argv.slice(2);
   const options = parseArgs(args);
   
   if (options.help || args.length === 0) {
     showHelp();
     process.exit(0);
+  }
+  
+  // Load configuration file if provided
+  let config: ReportGenerationOptions | undefined;
+  if (options.configFile) {
+    const loadedConfig = loadConfigFile(resolve(options.configFile));
+    if (!loadedConfig) {
+      process.exit(1);
+    }
+    config = loadedConfig;
   }
   
   // Check if this is a comparison report request
@@ -180,10 +234,10 @@ const main = async () => {
       } as File;
       
       console.log('⚙️  Processing current JMeter data...');
-      const currentData = await parseJMeterFile(currentFile, DOMParser);
+      const currentData = await parseJMeterFile(currentFile, DOMParser, config);
       
       console.log('⚙️  Processing previous JMeter data...');
-      const previousData = await parseJMeterFile(previousFile, DOMParser);
+      const previousData = await parseJMeterFile(previousFile, DOMParser, config);
       
       console.log('🔄 Comparing test results...');
       const comparisonResult = compareJMeterResults(
@@ -247,7 +301,7 @@ const main = async () => {
       } as File;
       
       console.log('⚙️  Processing JMeter data...');
-      const jmeterData = await parseJMeterFile(file, DOMParser);
+      const jmeterData = await parseJMeterFile(file, DOMParser, config);
       
       console.log('📊 Generating HTML report...');
       const htmlReport = generateHTMLReport(jmeterData);
