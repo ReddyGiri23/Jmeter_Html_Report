@@ -94,6 +94,12 @@ function App() {
             <ReportDashboard 
               data={jmeterData} 
               onReset={handleReset}
+              selectedTransactions={selectedTransactions}
+              onSelectedTransactionsChange={setSelectedTransactions}
+              activeErrorTransaction={activeErrorTransaction}
+              onTransactionErrorClick={handleTransactionErrorClick}
+              activeTab={reportActiveTab}
+              onTabChange={setReportActiveTab}
             />
           )
         ) : (

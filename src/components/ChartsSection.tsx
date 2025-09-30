@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart3 } from 'lucide-react';
+import { BarChart3, Filter, ToggleLeft, ToggleRight } from 'lucide-react';
 import { ChartData } from '../types/jmeter';
 import ResponseTimesChart from './charts/ResponseTimesChart';
 import ThroughputChart from './charts/ThroughputChart';
@@ -10,9 +10,40 @@ import PercentilesChart from './charts/PercentilesChart';
 
 interface ChartsSectionProps {
   chartData: ChartData;
+  selectedTransactions: string[];
+  onSelectedTransactionsChange: (transactions: string[]) => void;
+  allTransactions: string[];
 }
 
-const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData }) => {
+const ChartsSection: React.FC<ChartsSectionProps> = ({ 
+  chartData, 
+  selectedTransactions, 
+  onSelectedTransactionsChange, 
+  allTransactions 
+}) => {
+  const [showTrendlines, setShowTrendlines] = React.useState(true);
+
+  // Filter chart data based on selected transactions
+  const filterDataByTransactions = (data: Array<{ x: number; y: number; label: string }>) => {
+    return data.filter(point => selectedTransactions.includes(point.label));
+  };
+
+  const handleTransactionToggle = (transaction: string) => {
+    if (selectedTransactions.includes(transaction)) {
+      onSelectedTransactionsChange(selectedTransactions.filter(t => t !== transaction));
+    } else {
+      onSelectedTransactionsChange([...selectedTransactions, transaction]);
+    }
+  };
+
+  const handleSelectAll = () => {
+    onSelectedTransactionsChange(allTransactions);
+  };
+
+  const handleSelectNone = () => {
+    onSelectedTransactionsChange([]);
+  };
+
   // Calculate number of unique transactions
   const transactionCount = chartData.percentiles?.length || 0;
   
@@ -36,6 +67,64 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData }) => {
 
   return (
     <div className="space-y-8">
+      {/* Filter Controls */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center">
+            <Filter className="h-5 w-5 text-indigo-500 mr-2" />
+            <h3 className="text-lg font-semibold text-gray-900">Chart Filters</h3>
+          </div>
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => setShowTrendlines(!showTrendlines)}
+              className="flex items-center space-x-2 text-sm text-gray-600 hover:text-gray-900"
+            >
+              {showTrendlines ? (
+                <ToggleRight className="h-5 w-5 text-indigo-500" />
+              ) : (
+                <ToggleLeft className="h-5 w-5 text-gray-400" />
+              )}
+              <span>Show Trendlines</span>
+            </button>
+          </div>
+        </div>
+        
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-700">
+              Transactions ({selectedTransactions.length} of {allTransactions.length} selected)
+            </span>
+            <div className="space-x-2">
+              <button
+                onClick={handleSelectAll}
+                className="text-sm text-indigo-600 hover:text-indigo-800"
+              >
+                Select All
+              </button>
+              <button
+                onClick={handleSelectNone}
+                className="text-sm text-gray-600 hover:text-gray-800"
+              >
+                Select None
+              </button>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+            {allTransactions.map(transaction => (
+              <label key={transaction} className="flex items-center space-x-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={selectedTransactions.includes(transaction)}
+                  onChange={() => handleTransactionToggle(transaction)}
+                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span className="truncate" title={transaction}>{transaction}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      </div>
       {/* Time-Series Charts */}
       <div className="flex items-center">
         <BarChart3 className="h-6 w-6 text-blue-500 mr-3" />
@@ -55,7 +144,7 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData }) => {
       </div>
 
       <div className={`grid ${getTimeSeriesLayout()} gap-8`}>
-        <ResponseTimesChart data={chartData.responseTimesOverTime} />
+        <ResponseTimesChart data={filterDataByTransactions(chartData.responseTimesOverTime)} />
         <ThroughputChart data={chartData.tpsOverTime} />
       </div>
 
@@ -67,7 +156,9 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData }) => {
       {/* Percentiles Chart */}
       {chartData.percentiles && chartData.percentiles.length > 0 && (
         <div className="mt-8">
-          <PercentilesChart data={chartData.percentiles} />
+          <PercentilesChart 
+            data={chartData.percentiles.filter(p => selectedTransactions.includes(p.label))} 
+          />
         </div>
       )}
 
@@ -92,32 +183,40 @@ const ChartsSection: React.FC<ChartsSectionProps> = ({ chartData }) => {
         
         <div className={`grid ${getCorrelationLayout()} ${getCorrelationGap()}`}>
           <ScatterChart 
-            data={chartData.throughputVsResponseTime}
+            data={filterDataByTransactions(chartData.throughputVsResponseTime)}
             title="Throughput vs Response Time"
             xAxisLabel="Throughput (req/s)"
             yAxisLabel="Response Time (ms)"
             height={getCorrelationChartHeight()}
+            trendlineData={chartData.throughputVsResponseTimeTrend}
+            showTrendline={showTrendlines}
           />
           <ScatterChart 
-            data={chartData.usersVsResponseTime}
+            data={filterDataByTransactions(chartData.usersVsResponseTime)}
             title="Users vs Response Time"
             xAxisLabel="Active Users"
             yAxisLabel="Response Time (ms)"
             height={getCorrelationChartHeight()}
+            trendlineData={chartData.usersVsResponseTimeTrend}
+            showTrendline={showTrendlines}
           />
           <ScatterChart 
-            data={chartData.errorsVsUsers}
+            data={filterDataByTransactions(chartData.errorsVsUsers)}
             title="Errors vs Users"
             xAxisLabel="Active Users"
             yAxisLabel="Response Time (ms)"
             height={getCorrelationChartHeight()}
+            trendlineData={chartData.errorsVsUsersTrend}
+            showTrendline={showTrendlines}
           />
           <ScatterChart 
-            data={chartData.errorsVsResponseTime}
+            data={filterDataByTransactions(chartData.errorsVsResponseTime)}
             title="Errors vs Response Time"
             xAxisLabel="Response Time (ms)"
             yAxisLabel="Active Users"
             height={getCorrelationChartHeight()}
+            trendlineData={chartData.errorsVsResponseTimeTrend}
+            showTrendline={showTrendlines}
           />
         </div>
       </div>

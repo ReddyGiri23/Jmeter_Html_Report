@@ -77,6 +77,11 @@ export interface ChartData {
   errorsVsUsers: Array<{ x: number; y: number; label: string }>;
   errorsVsResponseTime: Array<{ x: number; y: number; label: string }>;
   hitsOverTime: Array<{ x: number; y: number }>;
+  // Trendline data for correlation charts
+  throughputVsResponseTimeTrend: { slope: number; intercept: number; rSquared: number } | null;
+  usersVsResponseTimeTrend: { slope: number; intercept: number; rSquared: number } | null;
+  errorsVsUsersTrend: { slope: number; intercept: number; rSquared: number } | null;
+  errorsVsResponseTimeTrend: { slope: number; intercept: number; rSquared: number } | null;
 }
 
 export interface JMeterData {
