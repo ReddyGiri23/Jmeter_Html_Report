@@ -59,7 +59,9 @@ const validateSample = (sample: any): boolean => {
     typeof sample.elapsed === 'number' &&
     sample.elapsed >= 0 &&
     typeof sample.label === 'string' &&
-    sample.label.trim() !== ''
+    sample.label.trim() !== '' &&
+    sample.label.trim() !== 'null' &&
+    sample.label.trim() !== 'undefined'
   );
 };
 

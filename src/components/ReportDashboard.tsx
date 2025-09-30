@@ -138,12 +138,24 @@ const ReportDashboard: React.FC<ReportDashboardProps> = ({ data, onReset }) => {
         <p className="text-blue-800 mb-3">
           Click "Download HTML Report" to get a comprehensive, self-contained report with interactive charts and detailed analysis.
         </p>
-        <ul className="text-sm text-blue-700 space-y-1">
-          <li>• <strong>Jenkins Integration:</strong> Use with publishHTML plugin for CI/CD pipelines</li>
-          <li>• <strong>Offline Viewing:</strong> No internet connection required - all resources embedded</li>
-          <li>• <strong>Shareable:</strong> Send the HTML file to stakeholders for review</li>
-          <li>• <strong>Interactive:</strong> Click through tabs and hover over charts for details</li>
-        </ul>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-blue-700">
+          <div>
+            <p className="font-medium mb-2">🚀 Integration Options:</p>
+            <ul className="space-y-1">
+              <li>• Jenkins publishHTML plugin support</li>
+              <li>• CI/CD pipeline integration ready</li>
+              <li>• Self-contained HTML file</li>
+            </ul>
+          </div>
+          <div>
+            <p className="font-medium mb-2">📈 Report Features:</p>
+            <ul className="space-y-1">
+              <li>• Interactive charts and graphs</li>
+              <li>• Sortable performance tables</li>
+              <li>• Detailed error analysis</li>
+            </ul>
+          </div>
+        </div>
       </div>
 
     </div>
