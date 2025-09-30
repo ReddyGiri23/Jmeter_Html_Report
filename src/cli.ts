@@ -2,8 +2,8 @@
 
 import { readFileSync, writeFileSync } from 'fs';
 import { resolve, basename, extname } from 'path';
-import { parseJMeterFile } from './utils/jmeterParser.js';
-import { generateHTMLReport } from './utils/reportGenerator.js';
+import { parseJMeterFile } from './utils/jmeterParser';
+import { generateHTMLReport } from './utils/reportGenerator';
 
 interface CLIOptions {
   input: string;

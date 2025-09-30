@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
-    "generate-report": "node --loader tsx/esm src/cli.ts"
+    "generate-report": "tsx src/cli.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
