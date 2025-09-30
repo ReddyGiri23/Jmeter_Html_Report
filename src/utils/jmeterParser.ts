@@ -3,6 +3,37 @@ import _ from 'lodash';
 import * as ss from 'simple-statistics';
 import { JMeterSample, JMeterData, TestSummary, TransactionMetrics, SLAResult, ErrorSample, ChartData, ReportGenerationOptions } from '../types/jmeter';
 
+// Calculate linear regression for trendlines
+const calculateLinearRegression = (data: Array<{ x: number; y: number }>): { slope: number; intercept: number; rSquared: number } | null => {
+  if (data.length < 2) return null;
+  
+  try {
+    // Filter out invalid data points
+    const validData = data.filter(point => 
+      !isNaN(point.x) && !isNaN(point.y) && 
+      isFinite(point.x) && isFinite(point.y)
+    );
+    
+    if (validData.length < 2) return null;
+    
+    // Convert to format expected by simple-statistics
+    const points: [number, number][] = validData.map(point => [point.x, point.y]);
+    
+    // Calculate linear regression
+    const regression = ss.linearRegression(points);
+    const rSquared = ss.rSquared(points, ss.linearRegressionLine(regression));
+    
+    return {
+      slope: regression.m,
+      intercept: regression.b,
+      rSquared: rSquared
+    };
+  } catch (error) {
+    log('Error calculating linear regression:', error);
+    return null;
+  }
+};
+
 // Enhanced logging for debugging
 const DEBUG = false;
 const log = (message: string, data?: any) => {
