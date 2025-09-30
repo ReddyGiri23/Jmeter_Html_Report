@@ -1,5 +1,6 @@
 import { JMeterData, TestSummary, ComparisonResult } from '../types/jmeter';
 
+export const generateHTMLReport = (data: JMeterData, comparison?: ComparisonResult) => {
   // Calculate transaction count for dynamic layout
   const transactionCount = data.transactions?.length || 0;
   
