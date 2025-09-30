@@ -355,7 +355,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
                 <p className="font-medium">✓ File Size:</p>
                 <p className="text-sm ml-4">Up to 100MB recommended. Larger files auto-adjust sampling.</p>
               </div>
-            </ul>
+            </div>
           </div>
         </div>
       </div>
