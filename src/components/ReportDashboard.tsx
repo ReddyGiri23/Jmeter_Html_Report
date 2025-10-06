@@ -1,12 +1,7 @@
-import React, { useState } from 'react';
-import { RefreshCcw, Download, CheckCircle, XCircle, FileText, Sparkles } from 'lucide-react';
+import React from 'react';
+import { RefreshCcw, Download, CheckCircle, XCircle, FileText } from 'lucide-react';
 import { JMeterData } from '../types/jmeter';
 import { generateHTMLReport } from '../utils/reportGenerator';
-import AdvancedInsightsPanel from './AdvancedInsightsPanel';
-import HeatmapChart from './charts/HeatmapChart';
-import BoxPlotChart from './charts/BoxPlotChart';
-import CorrelationMatrix from './charts/CorrelationMatrix';
-import { calculateCorrelations } from '../utils/statisticalAnalysis';
 
 interface ReportDashboardProps {
   data: JMeterData;
@@ -14,8 +9,6 @@ interface ReportDashboardProps {
 }
 
 const ReportDashboard: React.FC<ReportDashboardProps> = ({ data, onReset }) => {
-  const [activeView, setActiveView] = useState<'summary' | 'advanced' | 'visualizations'>('summary');
-
   const handleDownloadReport = () => {
     const htmlReport = generateHTMLReport(data);
     const blob = new Blob([htmlReport], { type: 'text/html' });
@@ -29,36 +22,10 @@ const ReportDashboard: React.FC<ReportDashboardProps> = ({ data, onReset }) => {
     URL.revokeObjectURL(url);
   };
 
-  const heatmapData = data.samples.map(s => ({
-    timestamp: s.timeStamp,
-    transaction: s.label,
-    responseTime: s.elapsed
-  }));
-
-  const boxPlotData = data.transactions.map(t => {
-    const transactionSamples = data.samples
-      .filter(s => s.label === t.label)
-      .map(s => s.elapsed);
-    return {
-      label: t.label,
-      values: transactionSamples
-    };
-  });
-
-  const correlationData = [
-    { name: 'Response Time', values: data.samples.slice(0, 100).map(s => s.elapsed) },
-    { name: 'Thread Count', values: data.samples.slice(0, 100).map(s => s.allThreads) },
-    { name: 'Bytes Sent', values: data.samples.slice(0, 100).map(s => s.sentBytes) },
-    { name: 'Bytes Received', values: data.samples.slice(0, 100).map(s => s.bytes) }
-  ];
-  const correlations = calculateCorrelations(correlationData);
-  const metricNames = correlationData.map(d => d.name);
-
   return (
     <div className="space-y-8">
-      {/* Header with Test Status and View Tabs */}
-      <div className="space-y-4">
-        <div className="flex justify-between items-center">
+      {/* Header with Test Status */}
+      <div className="flex justify-between items-center">
         <div className="flex items-center space-x-4">
           <div className="flex items-center">
             {data.slaResults.overallPassed ? (
@@ -87,47 +54,8 @@ const ReportDashboard: React.FC<ReportDashboardProps> = ({ data, onReset }) => {
             Upload New File
           </button>
         </div>
-        </div>
-
-        {/* View Tabs */}
-        <div className="flex space-x-2 border-b border-gray-200">
-          <button
-            onClick={() => setActiveView('summary')}
-            className={`px-6 py-3 font-semibold transition-colors ${
-              activeView === 'summary'
-                ? 'border-b-2 border-blue-600 text-blue-600'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Summary Report
-          </button>
-          <button
-            onClick={() => setActiveView('advanced')}
-            className={`px-6 py-3 font-semibold transition-colors flex items-center gap-2 ${
-              activeView === 'advanced'
-                ? 'border-b-2 border-blue-600 text-blue-600'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <Sparkles className="h-4 w-4" />
-            Advanced Insights
-          </button>
-          <button
-            onClick={() => setActiveView('visualizations')}
-            className={`px-6 py-3 font-semibold transition-colors ${
-              activeView === 'visualizations'
-                ? 'border-b-2 border-blue-600 text-blue-600'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Advanced Visualizations
-          </button>
-        </div>
       </div>
 
-      {/* Conditional Content Based on Active View */}
-      {activeView === 'summary' && (
-        <>
       {/* Report Preview Card */}
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex items-center mb-4">
@@ -229,33 +157,6 @@ const ReportDashboard: React.FC<ReportDashboardProps> = ({ data, onReset }) => {
           </div>
         </div>
       </div>
-        </>
-      )}
-
-      {activeView === 'advanced' && (
-        <AdvancedInsightsPanel data={data} />
-      )}
-
-      {activeView === 'visualizations' && (
-        <div className="space-y-6">
-          <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-6 border border-purple-200">
-            <h2 className="text-xl font-bold text-gray-900 mb-2">Advanced Visualizations</h2>
-            <p className="text-gray-700">
-              Explore your performance data with advanced visualization techniques including heatmaps, box plots, and correlation analysis.
-            </p>
-          </div>
-
-          <HeatmapChart data={heatmapData} title="Response Time Heatmap Over Time" />
-
-          <BoxPlotChart data={boxPlotData.slice(0, 10)} title="Response Time Distribution by Transaction" />
-
-          <CorrelationMatrix
-            correlations={correlations}
-            metrics={metricNames}
-            title="Performance Metrics Correlation Matrix"
-          />
-        </div>
-      )}
 
     </div>
   );

@@ -1,13 +1,9 @@
 import { useState } from 'react';
-import { Upload, Download } from 'lucide-react';
+import { Upload, FileText, Download, GitCompare } from 'lucide-react';
 import FileUploader from './components/FileUploader';
 import ReportDashboard from './components/ReportDashboard';
 import ComparisonUploader from './components/ComparisonUploader';
 import ComparisonDashboard from './components/ComparisonDashboard';
-import Navigation from './components/Navigation';
-import Breadcrumb from './components/Breadcrumb';
-import StepIndicator from './components/StepIndicator';
-import KeyboardShortcuts from './components/KeyboardShortcuts';
 import { JMeterData, ComparisonResult } from './types/jmeter';
 
 function App() {
@@ -29,125 +25,91 @@ function App() {
     setComparisonResult(null);
   };
 
-  const handleTabChange = (tab: 'single' | 'comparison') => {
-    setActiveTab(tab);
-    handleReset();
-  };
-
-  const hasData = activeTab === 'single' ? !!jmeterData : !!comparisonResult;
-
-  const getCurrentStep = () => {
-    if (activeTab === 'single') {
-      return jmeterData ? 1 : 0;
-    } else {
-      return comparisonResult ? 1 : 0;
-    }
-  };
-
-  const singleReportSteps = [
-    { id: 'upload', label: 'Upload File', description: 'Select JTL/CSV file' },
-    { id: 'results', label: 'View Results', description: 'Analyze performance' },
-  ];
-
-  const comparisonSteps = [
-    { id: 'upload', label: 'Upload Files', description: 'Select two test files' },
-    { id: 'results', label: 'Compare Results', description: 'View differences' },
-  ];
-
-  const getBreadcrumbItems = () => {
-    const items = [{ label: 'Home', onClick: () => handleReset() }];
-
-    if (activeTab === 'single') {
-      items.push({ label: 'Single Report' });
-      if (jmeterData) {
-        items.push({ label: 'Results' });
-      }
-    } else {
-      items.push({ label: 'Comparison' });
-      if (comparisonResult) {
-        items.push({ label: 'Results' });
-      }
-    }
-
-    return items;
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
-      <KeyboardShortcuts
-        activeTab={activeTab}
-        onTabSwitch={handleTabChange}
-        onEscape={handleReset}
-      />
-      <Navigation
-        activeTab={activeTab}
-        onTabChange={handleTabChange}
-        hasData={hasData}
-      />
-
-      <div className="container mx-auto px-4 py-6">
-        <div className="mb-6">
-          <Breadcrumb items={getBreadcrumbItems()} />
-        </div>
-
-        <header className="mb-8">
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              {activeTab === 'single' ? 'Single Report Analysis' : 'Performance Comparison'}
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="container mx-auto px-4 py-8">
+        <header className="text-center mb-8">
+          <div className="flex items-center justify-center mb-4">
+            <FileText className="h-12 w-12 text-indigo-600 mr-3" />
+            <h1 className="text-4xl font-bold text-gray-900">
+              JMeter Report Generator
             </h1>
-            <p className="text-gray-600 mb-6">
-              {activeTab === 'single'
-                ? 'Generate comprehensive HTML reports from JMeter .jtl/.csv files'
-                : 'Compare performance metrics between two test runs'}
-            </p>
-
-            <div className="flex flex-wrap gap-4 text-sm text-gray-500 mb-6">
-              <span className="flex items-center bg-blue-50 px-3 py-1 rounded-full">
-                <Upload className="h-4 w-4 mr-1" />
-                Easy Upload
-              </span>
-              <span className="flex items-center bg-green-50 px-3 py-1 rounded-full">
-                <Download className="h-4 w-4 mr-1" />
-                Jenkins Compatible
-              </span>
-            </div>
-
-            <StepIndicator
-              steps={activeTab === 'single' ? singleReportSteps : comparisonSteps}
-              currentStep={getCurrentStep()}
-            />
+          </div>
+          <p className="text-lg text-gray-600">
+            Generate comprehensive HTML reports from JMeter .jtl/.csv files
+          </p>
+          <div className="mt-4 flex items-center justify-center space-x-6 text-sm text-gray-500">
+            <span className="flex items-center">
+              <Upload className="h-4 w-4 mr-1" />
+              Single Report
+            </span>
+            <span className="flex items-center">
+              <GitCompare className="h-4 w-4 mr-1" />
+              Performance Comparison
+            </span>
+            <span className="flex items-center">
+              <Download className="h-4 w-4 mr-1" />
+              Jenkins Compatible
+            </span>
           </div>
         </header>
 
-        <main>
-          {activeTab === 'single' ? (
-            !jmeterData ? (
-              <FileUploader
-                onDataProcessed={handleDataProcessed}
-                isProcessing={isProcessing}
-                setIsProcessing={setIsProcessing}
-              />
-            ) : (
-              <ReportDashboard
-                data={jmeterData}
-                onReset={handleReset}
-              />
-            )
+        {/* Tab Navigation */}
+        <div className="flex justify-center mb-8">
+          <div className="bg-white rounded-lg shadow-md p-1 flex">
+            <button
+              onClick={() => setActiveTab('single')}
+              className={`px-6 py-3 rounded-md font-medium transition-colors ${
+                activeTab === 'single'
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <FileText className="h-4 w-4 inline mr-2" />
+              Single Report
+            </button>
+            <button
+              onClick={() => setActiveTab('comparison')}
+              className={`px-6 py-3 rounded-md font-medium transition-colors ${
+                activeTab === 'comparison'
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <GitCompare className="h-4 w-4 inline mr-2" />
+              Comparison
+            </button>
+          </div>
+        </div>
+
+        {/* Content based on active tab */}
+        {activeTab === 'single' ? (
+          !jmeterData ? (
+            <FileUploader 
+              onDataProcessed={handleDataProcessed}
+              isProcessing={isProcessing}
+              setIsProcessing={setIsProcessing}
+            />
           ) : (
-            !comparisonResult ? (
-              <ComparisonUploader
-                onComparisonComplete={handleComparisonComplete}
-                isProcessing={isProcessing}
-                setIsProcessing={setIsProcessing}
-              />
-            ) : (
-              <ComparisonDashboard
-                comparisonResult={comparisonResult}
-                onReset={handleReset}
-              />
-            )
-          )}
-        </main>
+            <ReportDashboard 
+              data={jmeterData} 
+              onReset={handleReset}
+            />
+          )
+        ) : (
+          !comparisonResult ? (
+            <ComparisonUploader
+              onComparisonComplete={handleComparisonComplete}
+              isProcessing={isProcessing}
+              setIsProcessing={setIsProcessing}
+            />
+          ) : (
+            <ComparisonDashboard
+              comparisonResult={comparisonResult}
+              onReset={handleReset}
+            />
+          )
+        )}
       </div>
     </div>
   );
